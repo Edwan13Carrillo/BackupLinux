@@ -1,0 +1,127 @@
+armadura y herramientas top, si es en un server con plugins poner "minecraft:give""
+-
+--
+---
+----
+-----
+------
+Casco de Netherite Mega Increíble
+
+/minecraft:give Zimbad2006 netherite_helmet{display:{Name:"{\"text\":\"Casco Tor-Tilla\",\"color\":\"dark_purple\",\"bold\":true}"},Enchantments:[{id:protection,lvl:5},{id:unbreaking,lvl:5},{id:mending,lvl:1},{id:respiration,lvl:5},{id:aqua_affinity,lvl:1}],AttributeModifiers:[{AttributeName:"generic.armor",Name:"generic.armor",Amount:10,Operation:0,UUID:[I;1,2,3,4],Slot:"head"},{AttributeName:"generic.armor_toughness",Name:"generic.armor_toughness",Amount:10,Operation:0,UUID:[I;5,6,7,8],Slot:"head"},{AttributeName:"generic.max_health",Name:"generic.max_health",Amount:20,Operation:0,UUID:[I;9,10,11,12],Slot:"head"}]} 1
+
+Pechera de Netherite Mega Increíble
+
+/minecraft:give Zimbad2006 netherite_chestplate{display:{Name:"{\"text\":\"Kepa Jamecho\",\"color\":\"dark_purple\",\"bold\":true}"},Enchantments:[{id:protection,lvl:5},{id:unbreaking,lvl:5},{id:mending,lvl:1},{id:thorns,lvl:5}],AttributeModifiers:[{AttributeName:"generic.armor",Name:"generic.armor",Amount:12,Operation:0,UUID:[I;13,14,15,16],Slot:"chest"},{AttributeName:"generic.armor_toughness",Name:"generic.armor_toughness",Amount:10,Operation:0,UUID:[I;17,18,19,20],Slot:"chest"},{AttributeName:"generic.max_health",Name:"generic.max_health",Amount:20,Operation:0,UUID:[I;21,22,23,24],Slot:"chest"}]} 1
+
+Pantalones de Netherite Mega Increíble
+
+/minecraft:give Zimbad2006 netherite_leggings{display:{Name:"{\"text\":\"Jorge MIdos\",\"color\":\"dark_purple\",\"bold\":true}"},Enchantments:[{id:protection,lvl:5},{id:unbreaking,lvl:5},{id:mending,lvl:1},{id:thorns,lvl:5}],AttributeModifiers:[{AttributeName:"generic.armor",Name:"generic.armor",Amount:10,Operation:0,UUID:[I;25,26,27,28],Slot:"legs"},{AttributeName:"generic.armor_toughness",Name:"generic.armor_toughness",Amount:10,Operation:0,UUID:[I;29,30,31,32],Slot:"legs"},{AttributeName:"generic.max_health",Name:"generic.max_health",Amount:20,Operation:0,UUID:[I;33,34,35,36],Slot:"legs"}]} 1
+
+Botas de Netherite Mega Increíbles
+
+/minecraft:give Zimbad2006 netherite_boots{display:{Name:"{\"text\":\"Haland Omela\",\"color\":\"dark_purple\",\"bold\":true}"},Enchantments:[{id:protection,lvl:5},{id:unbreaking,lvl:5},{id:mending,lvl:1},{id:thorns,lvl:5},{id:depth_strider,lvl:5},{id:soul_speed,lvl:5}],AttributeModifiers:[{AttributeName:"generic.armor",Name:"generic.armor",Amount:10,Operation:0,UUID:[I;37,38,39,40],Slot:"feet"},{AttributeName:"generic.armor_toughness",Name:"generic.armor_toughness",Amount:10,Operation:0,UUID:[I;41,42,43,44],Slot:"feet"},{AttributeName:"generic.max_health",Name:"generic.max_health",Amount:20,Operation:0,UUID:[I;45,46,47,48],Slot:"feet"}]} 1
+----------
+✅ Máxima protección (Protección X)
+✅ Irrompible (Irrompibilidad X + Reparación)
+✅ Espinas V (Devuelve daño a los atacantes)
+✅ Respiración V y Afinidad Acuática (En el casco, para resistir bajo el agua)
+✅ Caída de pluma X (En las botas, para casi no recibir daño al caer)
+✅ Velocidad en el agua y sobre arena de almas (Paso Profundo V + Velocidad en Alma V en las botas)
+✅ +20 corazones extra en cada pieza (vida extra total: +80 corazones)
+✅ Armadura y dureza extra (Mucho más tanque que una armadura normal)
+✅ Colores y nombres personalizados para lucir épico
+----------
+
+Espada de Netherite Mega Increíble
+
+/minecraft:give Zimbad2006 netherite_sword{display:{Name:"{\"text\":\"Espada ok\",\"color\":\"red\",\"bold\":true}"},Enchantments:[{id:sharpness,lvl:10},{id:unbreaking,lvl:10},{id:mending,lvl:1},{id:fire_aspect,lvl:5},{id:looting,lvl:5},{id:sweeping,lvl:5}],AttributeModifiers:[{AttributeName:"generic.attack_damage",Name:"generic.attack_damage",Amount:50,Operation:0,UUID:[I;1,2,3,4],Slot:"mainhand"},{AttributeName:"generic.attack_speed",Name:"generic.attack_speed",Amount:2,Operation:0,UUID:[I;5,6,7,8],Slot:"mainhand"}]} 1
+
+✅ 50 de daño por golpe
+✅ Aspecto ígneo V (quema a los enemigos)
+✅ Saqueo V (más drops de mobs)
+✅ Barrido V (ataques en área más fuertes)
+✅ Irrompibilidad X y Reparación (no se rompe nunca)
+
+
+---
+
+Pico de Netherite Mega Increíble
+
+/give @p netherite_pickaxe{display:{Name:"{\"text\":\"Pico ok\",\"color\":\"gold\",\"bold\":true}"},Enchantments:[{id:efficiency,lvl:6},{id:unbreaking,lvl:10},{id:mending,lvl:1},{id:fortune,lvl:5}],AttributeModifiers:[{AttributeName:"generic.attack_damage",Name:"generic.attack_damage",Amount:20,Operation:0,UUID:[I;9,10,11,12],Slot:"mainhand"},{AttributeName:"generic.attack_speed",Name:"generic.attack_speed",Amount:2,Operation:0,UUID:[I;13,14,15,16],Slot:"mainhand"}]} 1
+
+✅ Eficiencia 6 (mina a velocidad buena)
+✅ Fortuna V (saca más minerales de cada bloque)
+✅ Irrompibilidad X y Reparación (no se rompe)
+✅ 20 de daño si lo usas para pelear
+
+
+---
+
+Hacha de Netherite Mega Increíble
+
+/give @p netherite_axe{display:{Name:"{\"text\":\"Hacha ok\",\"color\":\"dark_red\",\"bold\":true}"},Enchantments:[{id:sharpness,lvl:10},{id:unbreaking,lvl:10},{id:mending,lvl:1},{id:efficiency,lvl:6}],AttributeModifiers:[{AttributeName:"generic.attack_damage",Name:"generic.attack_damage",Amount:40,Operation:0,UUID:[I;17,18,19,20],Slot:"mainhand"},{AttributeName:"generic.attack_speed",Name:"generic.attack_speed",Amount:1,Operation:0,UUID:[I;21,22,23,24],Slot:"mainhand"}]} 1
+
+✅ 40 de daño por golpe (más que la espada)
+✅ Eficiencia 6 (tala árboles instantáneamente)
+✅ Irrompibilidad X y Reparación
+
+
+---
+
+Escudo Mega Increíble
+
+/minecraft:give Zimbad2006 shield{display:{Name:"{\"text\":\"Zebino Sobretti\",\"color\":\"blue\",\"bold\":true}"},Enchantments:[{id:unbreaking,lvl:10},{id:mending,lvl:1}],AttributeModifiers:[{AttributeName:"generic.knockback_resistance",Name:"generic.knockback_resistance",Amount:1,Operation:0,UUID:[I;25,26,27,28],Slot:"offhand"}]} 1
+
+✅ Irrompibilidad X y Reparación (resiste cualquier ataque)
+✅ Inmune al empuje (no te pueden lanzar lejos)
+
+¡Aquí tienes las armas a distancia definitivas y un tridente ultra poderoso para completar tu set OP en Minecraft 1.16.5!
+
+
+---
+
+Arco Mega Increíble
+
+/give @p bow{display:{Name:"{\"text\":\"Arco ok\",\"color\":\"gold\",\"bold\":true}"},Enchantments:[{id:power,lvl:10},{id:unbreaking,lvl:10},{id:mending,lvl:1},{id:flame,lvl:5},{id:infinity,lvl:1},AttributeModifiers:[{AttributeName:"generic.attack_damage",Name:"generic.attack_damage",Amount:30,Operation:0,UUID:[I;5,6,7,8],Slot:"mainhand"}]} 1
+
+✅ Fuerza X (hace daño brutal)
+✅ Infinitas flechas (con solo 1 flecha en el inventario)
+✅ Fuego V (prende a los enemigos en llamas)
+✅ Irrompibilidad X y Reparación
+
+
+---
+
+Ballesta Mega Increíble
+
+/give @p crossbow{display:{Name:"{\"text\":\"Ballesta ok\",\"color\":\"dark_red\",\"bold\":true}"},Enchantments:[{id:quick_charge,lvl:5},{id:unbreaking,lvl:10},{id:mending,lvl:1},{id:multishot,lvl:1},{id:piercing,lvl:5}],AttributeModifiers:[{AttributeName:"generic.attack_damage",Name:"generic.attack_damage",Amount:25,Operation:0,UUID:[I;9,10,11,12],Slot:"mainhand"}]} 1
+
+✅ Carga súper rápida (Carga instantáneamente)
+✅ Multidisparo (dispara 3 flechas a la vez)
+✅ Perforación V (atraviesa a varios enemigos)
+✅ Irrompibilidad X y Reparación
+---
+
+1. Tridente para combate a distancia (sin Riptide):
+
+Se puede lanzar y volver con Lealtad V
+
+Puede invocar rayos con Canalización
+
+
+Comando:
+
+/give @p trident{display:{Name:"{\"text\":\"Elpo John\",\"color\":\"aqua\",\"bold\":true}"},Enchantments:[{id:impaling,lvl:10},{id:loyalty,lvl:5},{id:unbreaking,lvl:10},{id:mending,lvl:1},{id:channeling,lvl:1}]} 1
+
+
+2. Tridente para moverte rápido en el agua y la lluvia (sin Lealtad):
+
+Te impulsa como torpedo en el agua con Riptide V
+
+No se puede lanzar como proyectil
+
+
+Comando:
+
+/minecraft:give Zimbad2006 trident{display:{Name:"{\"text\":\"Elpo John\",\"color\":\"aqua\",\"bold\":true}"},Enchantments:[{id:impaling,lvl:10},{id:unbreaking,lvl:10},{id:mending,lvl:1},{id:riptide,lvl:5}]} 1
+---

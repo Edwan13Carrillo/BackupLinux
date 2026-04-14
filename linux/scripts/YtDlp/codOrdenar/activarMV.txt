@@ -1,0 +1,5 @@
+python -m venv venv #Esto crea el entorno virtual, con esto ya se puede usar pip install solo para esa carpeta.
+
+source venv/bin/activate #Esto activa el entorno virtual
+
+deactivate #Esto desactiva el entorno virtual

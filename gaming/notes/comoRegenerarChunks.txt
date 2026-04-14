@@ -1,0 +1,4 @@
+java \
+  --module-path ~/javafx-sdk-17.0.16/lib \
+  --add-modules javafx.controls,javafx.fxml \
+  -jar /home/matt/MCASelector/mcaselector-2.5.3.jar
