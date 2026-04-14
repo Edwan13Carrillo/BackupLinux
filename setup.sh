@@ -106,32 +106,32 @@ fase_dotfiles() {
   fi
 
   # Widget Clear Clock
-  if [ -d "$CONFIGS_DIR/widget" ]; then
-    print_info "Copiando widget Clear Clock..."
-    mkdir -p ~/.local/share/plasma/plasmoids
-    cp -r "$CONFIGS_DIR/widget/." ~/.local/share/plasma/plasmoids/
-    print_ok "Widget copiado."
-    print_warn "Agrega el widget al escritorio, reemplaza su config.qml y luego refresca Plasma:"
-    print_warn "kquitapp6 plasmashell && kstart5 plasmashell"
-  else
-    print_err "No se encontró la carpeta widget en $CONFIGS_DIR"
-  fi
+  #if [ -d "$CONFIGS_DIR/widget" ]; then
+  #  print_info "Copiando widget Clear Clock..."
+  #  mkdir -p ~/.local/share/plasma/plasmoids
+  #  cp -r "$CONFIGS_DIR/widget/." ~/.local/share/plasma/plasmoids/
+  #  print_ok "Widget copiado."
+  #  print_warn "Agrega el widget al escritorio, reemplaza su config.qml y luego refresca Plasma:"
+  #  print_warn "kquitapp6 plasmashell && kstart5 plasmashell"
+  #else
+  #  print_err "No se encontró la carpeta widget en $CONFIGS_DIR"
+  #fi
 }
 
-fase_fuentes() {
-  print_header "Fase 3 — Fuentes"
-
-  if [ -d "$FONTS_DIR" ] && [ "$(ls -A "$FONTS_DIR"/*.ttf 2>/dev/null)" ]; then
-    print_info "Instalando fuentes..."
-    mkdir -p ~/.local/share/fonts
-    cp "$FONTS_DIR"/*.ttf ~/.local/share/fonts/
-    fc-cache -fv > /dev/null 2>&1
-    print_ok "Fuentes instaladas: $(ls "$FONTS_DIR"/*.ttf | wc -l) archivo(s)."
-    print_warn "Aplica las fuentes en: Ajustes del sistema > Fuentes (Fredoka Medium 12pt / 10pt)."
-  else
-    print_err "No se encontraron archivos .ttf en $FONTS_DIR"
-  fi
-}
+#fase_fuentes() {
+#  print_header "Fase 3 — Fuentes"
+#
+#  if [ -d "$FONTS_DIR" ] && [ "$(ls -A "$FONTS_DIR"/*.ttf 2>/dev/null)" ]; then
+#    print_info "Instalando fuentes..."
+#    mkdir -p ~/.local/share/fonts
+#    cp "$FONTS_DIR"/*.ttf ~/.local/share/fonts/
+#    fc-cache -fv > /dev/null 2>&1
+#    print_ok "Fuentes instaladas: $(ls "$FONTS_DIR"/*.ttf | wc -l) archivo(s)."
+#    print_warn "Aplica las fuentes en: Ajustes del sistema > Fuentes (Fredoka Medium 12pt / 10pt)."
+#  else
+#    print_err "No se encontraron archivos .ttf en $FONTS_DIR"
+#  fi
+#}
 
 fase_gamezone() {
   print_header "Fase 4 — Subvolumen Game Zone (Btrfs)"
