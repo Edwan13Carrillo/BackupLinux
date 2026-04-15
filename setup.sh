@@ -122,7 +122,7 @@ fase_dotfiles() {
     print_info "Copiando look and feel (Kuro)..."
     mkdir -p ~/.local/share/plasma/look-and-feel
     cp -r "$CONFIGS_DIR/local/a2n.kuro/" ~/.local/share/plasma/look-and-feel/
-    print_ok "Look and feel copiado."
+    print_ok "Look and feel copiado (Kuro)."
   else
     print_err "No se encontró la carpeta look-and-feel en $CONFIGS_DIR"
   fi
@@ -143,6 +143,16 @@ fase_dotfiles() {
     mkdir -p ~/.icons
     cp -r "$CONFIGS_DIR/local/Bibata-Modern-Ice/" ~/.icons/
     print_ok "Cursores copiados."
+  else
+    print_err "No se encontró la carpeta cursors/Bibata-Modern-Ice en $CONFIGS_DIR"
+  fi
+
+  # Tema global
+  if [ -d "$CONFIGS_DIR/local/cachyosTG" ]; then
+    print_info "Copiando tema global..."
+    cp -r "$CONFIGS_DIR/local/cachyosTG/" ~/.local/share/plasma/look-and-feel/
+    print_ok "Tema global copiado."
+    print_warn "Ve a: Ajustes del sistema > Aspecto > Tema global y selecciona 'CachyTG' para aplicarlo."
   else
     print_err "No se encontró la carpeta cursors/Bibata-Modern-Ice en $CONFIGS_DIR"
   fi
