@@ -250,11 +250,11 @@ fase_snapper() {
   sudo snapper -c root create-config /
 
   print_info "Ajustando límites en /etc/snapper/configs/root..."
-  sudo sed -i 's/^DAILY_LIMIT=.*/DAILY_LIMIT="5"/' /etc/snapper/configs/root
-  sudo sed -i 's/^WEEKLY_LIMIT=.*/WEEKLY_LIMIT="1"/' /etc/snapper/configs/root
-  sudo sed -i 's/^MONTHLY_LIMIT=.*/MONTHLY_LIMIT="0"/' /etc/snapper/configs/root
-  sudo sed -i 's/^YEARLY_LIMIT=.*/YEARLY_LIMIT="0"/' /etc/snapper/configs/root
-  sudo sed -i 's/^HOURLY_LIMIT=.*/HOURLY_LIMIT="0"/' /etc/snapper/configs/root
+  sudo sed -i 's/^TIMELINE_LIMIT_DAILY=.*/TIMELINE_LIMIT_DAILY="5"/' /etc/snapper/configs/root
+  sudo sed -i 's/^TIMELINE_LIMIT_WEEKLY=.*/TIMELINE_LIMIT_WEEKLY="1"/' /etc/snapper/configs/root
+  sudo sed -i 's/^TIMELINE_LIMIT_MONTHLY=.*/TIMELINE_LIMIT_MONTHLY="0"/' /etc/snapper/configs/root
+  sudo sed -i 's/^TIMELINE_LIMIT_YEARLY=.*/TIMELINE_LIMIT_YEARLY="0"/' /etc/snapper/configs/root
+  sudo sed -i 's/^TIMELINE_LIMIT_HOURLY=.*/TIMELINE_LIMIT_HOURLY="0"/' /etc/snapper/configs/root
   sudo sed -i 's/^NUMBER_LIMIT=.*/NUMBER_LIMIT="0"/' /etc/snapper/configs/root
 
   print_ok "Snapper configurado."
