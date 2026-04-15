@@ -128,11 +128,11 @@ fase_dotfiles() {
   fi
 
   # Iconos Tela Dark
-  if [ -d "$CONFIGS_DIR/local/Tela" ]; then
+  if [ -d "$CONFIGS_DIR/Tela" ]; then
     print_info "Copiando iconos Tela..."
     mkdir -p ~/.local/share/icons
-    cp -r "$CONFIGS_DIR/local/Tela/" ~/.local/share/icons/
-    print_ok "Iconos Tela Dark copiados."
+    cp -r "$CONFIGS_DIR/Tela/" ~/.local/share/icons/
+    print_ok "Iconos Tela copiados."
   else
     print_err "No se encontró la carpeta icons/Tela en $CONFIGS_DIR"
   fi
