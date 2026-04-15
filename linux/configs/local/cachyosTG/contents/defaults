@@ -5,7 +5,7 @@ cursorTheme=Bibata-Modern-Ice
 ColorScheme=ArchDark
 
 [kdeglobals][Icons]
-Theme=Tela-dark
+Theme=Tela
 
 [kdeglobals][KDE]
 widgetStyle=Breeze

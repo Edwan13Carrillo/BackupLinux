@@ -128,13 +128,13 @@ fase_dotfiles() {
   fi
 
   # Iconos Tela Dark
-  if [ -d "$CONFIGS_DIR/local/Tela-dark" ]; then
-    print_info "Copiando iconos Tela Dark..."
+  if [ -d "$CONFIGS_DIR/local/Tela" ]; then
+    print_info "Copiando iconos Tela..."
     mkdir -p ~/.local/share/icons
-    cp -r "$CONFIGS_DIR/local/Tela-dark/" ~/.local/share/icons/
+    cp -r "$CONFIGS_DIR/local/Tela/" ~/.local/share/icons/
     print_ok "Iconos Tela Dark copiados."
   else
-    print_err "No se encontró la carpeta icons/Tela-dark en $CONFIGS_DIR"
+    print_err "No se encontró la carpeta icons/Tela en $CONFIGS_DIR"
   fi
 
   # Cursores Bibata
