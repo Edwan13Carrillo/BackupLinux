@@ -59,11 +59,13 @@ fase_paquetes() {
   print_info "Instalando paquetes desde repositorio oficial..."
   sudo pacman -S --noconfirm --needed \
     discord \
-    protonvpn \
     vlc \
     telegram-desktop \
     zen-browser-bin \
+    libreoffice-still \
+    libreoffice-still-es \
     git \
+    alacritty \
     fastfetch \
     base-devel \
     yay
@@ -75,7 +77,7 @@ fase_paquetes() {
   print_ok "VSCode instalado."
 
   print_info "Instalando Sober/Roblox (Flatpak)..."
-  flatpak install -y sober
+  flatpak install flathub org.vinegarhq.Sober
   print_ok "Sober instalado."
 
   print_warn "Prism Launcher: instalación manual. Recuerda seleccionar Java 17 dentro de la app."
@@ -83,6 +85,80 @@ fase_paquetes() {
 
 fase_dotfiles() {
   print_header "Fase 2 — Dotfiles y configuraciones"
+  # ── Temas KDE (primero los archivos, luego la config) ──
+
+  # Aurorae (decoraciones de ventanas)
+  if [ -d "$CONFIGS_DIR/local/aurorae/Layan" ]; then
+    print_info "Copiando tema de decoraciones Layan..."
+    mkdir -p ~/.local/share/aurorae/themes
+    cp -r "$CONFIGS_DIR/local/aurorae/Layan/" ~/.local/share/aurorae/themes/
+    print_ok "Decoraciones Layan copiadas."
+  else
+    print_err "No se encontró la carpeta aurorae/Layan en $CONFIGS_DIR"
+  fi
+
+  # Color scheme
+  if [ -f "$CONFIGS_DIR/local/ArchDark.colors" ]; then
+    print_info "Copiando esquema de colores ArchDark..."
+    mkdir -p ~/.local/share/color-schemes
+    cp "$CONFIGS_DIR/local/ArchDark.colors" ~/.local/share/color-schemes/
+    print_ok "Colores ArchDark copiados."
+  else
+    print_err "No se encontró ArchDark.colors en $CONFIGS_DIR"
+  fi
+
+  # Plasma desktop theme
+  if [ -d "$CONFIGS_DIR/local/desktoptheme" ]; then
+    print_info "Copiando temas de Plasma (Arch-round, Layan)..."
+    mkdir -p ~/.local/share/plasma/desktoptheme
+    cp -r "$CONFIGS_DIR/local/desktoptheme/" ~/.local/share/plasma/
+    print_ok "Temas de Plasma copiados."
+  else
+    print_err "No se encontró la carpeta desktoptheme en $CONFIGS_DIR"
+  fi
+
+  # Look and feel (splash screen Kuro)
+  if [ -d "$CONFIGS_DIR/local/a2n.kuro/" ]; then
+    print_info "Copiando look and feel (Kuro)..."
+    mkdir -p ~/.local/share/plasma/look-and-feel
+    cp -r "$CONFIGS_DIR/local/a2n.kuro/" ~/.local/share/plasma/look-and-feel/
+    print_ok "Look and feel copiado."
+  else
+    print_err "No se encontró la carpeta look-and-feel en $CONFIGS_DIR"
+  fi
+
+  # Iconos Tela Dark
+  if [ -d "$CONFIGS_DIR/local/Tela-dark" ]; then
+    print_info "Copiando iconos Tela Dark..."
+    mkdir -p ~/.local/share/icons
+    cp -r "$CONFIGS_DIR/local/Tela-dark/" ~/.local/share/icons/
+    print_ok "Iconos Tela Dark copiados."
+  else
+    print_err "No se encontró la carpeta icons/Tela-dark en $CONFIGS_DIR"
+  fi
+
+  # Cursores Bibata
+  if [ -d "$CONFIGS_DIR/local/Bibata-Modern-Ice" ]; then
+    print_info "Copiando cursores Bibata-Modern-Ice..."
+    mkdir -p ~/.icons
+    cp -r "$CONFIGS_DIR/local/Bibata-Modern-Ice/" ~/.icons/
+    print_ok "Cursores copiados."
+  else
+    print_err "No se encontró la carpeta cursors/Bibata-Modern-Ice en $CONFIGS_DIR"
+  fi
+
+  # kdedefaults (al final, cuando ya están los temas)
+  if [ -d "$CONFIGS_DIR/kdedefaults" ]; then
+    print_info "Aplicando configuración de KDE..."
+    mkdir -p ~/.config/kdedefaults
+    cp -r "$CONFIGS_DIR/kdedefaults/." ~/.config/kdedefaults/
+    print_ok "Configuración de KDE aplicada."
+    print_warn "Cierra sesión y vuelve a entrar para que KDE aplique todos los temas."
+  else
+    print_err "No se encontró la carpeta kdedefaults en $CONFIGS_DIR"
+  fi
+
+  # ── Aplicaciones ──
 
   # Fastfetch
   if [ -d "$CONFIGS_DIR/fastfetch" ]; then
@@ -94,44 +170,50 @@ fase_dotfiles() {
     print_err "No se encontró la carpeta fastfetch en $CONFIGS_DIR"
   fi
 
-  # Konsole
-  if [ -d "$CONFIGS_DIR/konsole" ]; then
-    print_info "Copiando perfil de Konsole..."
-    mkdir -p ~/.local/share/konsole
-    cp -r "$CONFIGS_DIR/konsole/." ~/.local/share/konsole/
-    print_ok "Perfil de Konsole copiado."
-    print_warn "Abre Konsole > Ajustes > Gestionar perfiles y márcalo como predeterminado."
+  # Alacritty
+  if [ -d "$CONFIGS_DIR/alacritty" ]; then
+    print_info "Copiando configuración de Alacritty..."
+    mkdir -p ~/.config/alacritty
+    cp -r "$CONFIGS_DIR/alacritty/." ~/.config/alacritty/
+    print_ok "Alacritty configurado."
   else
-    print_err "No se encontró la carpeta konsole en $CONFIGS_DIR"
+    print_err "No se encontró la carpeta alacritty en $CONFIGS_DIR"
   fi
 
   # Widget Clear Clock
-  #if [ -d "$CONFIGS_DIR/widget" ]; then
-  #  print_info "Copiando widget Clear Clock..."
-  #  mkdir -p ~/.local/share/plasma/plasmoids
-  #  cp -r "$CONFIGS_DIR/widget/." ~/.local/share/plasma/plasmoids/
-  #  print_ok "Widget copiado."
-  #  print_warn "Agrega el widget al escritorio, reemplaza su config.qml y luego refresca Plasma:"
-  #  print_warn "kquitapp6 plasmashell && kstart5 plasmashell"
-  #else
-  #  print_err "No se encontró la carpeta widget en $CONFIGS_DIR"
-  #fi
+  if [ -d "$CONFIGS_DIR/widget" ]; then
+    print_info "Copiando widget Clear Clock..."
+    mkdir -p ~/.local/share/plasma/plasmoids
+    cp -r "$CONFIGS_DIR/org.kde.plasma.clearclock/." ~/.local/share/plasma/plasmoids/
+    print_ok "Widget copiado."
+    print_warn "Agrega el widget al escritorio, reemplaza su config.qml y luego refresca Plasma:"
+    print_warn "kquitapp6 plasmashell && kstart5 plasmashell"
+  else
+    print_err "No se encontró la carpeta widget en $CONFIGS_DIR"
+  fi
 }
 
-#fase_fuentes() {
-#  print_header "Fase 3 — Fuentes"
-#
-#  if [ -d "$FONTS_DIR" ] && [ "$(ls -A "$FONTS_DIR"/*.ttf 2>/dev/null)" ]; then
-#    print_info "Instalando fuentes..."
-#    mkdir -p ~/.local/share/fonts
-#    cp "$FONTS_DIR"/*.ttf ~/.local/share/fonts/
-#    fc-cache -fv > /dev/null 2>&1
-#    print_ok "Fuentes instaladas: $(ls "$FONTS_DIR"/*.ttf | wc -l) archivo(s)."
-#    print_warn "Aplica las fuentes en: Ajustes del sistema > Fuentes (Fredoka Medium 12pt / 10pt)."
-#  else
-#    print_err "No se encontraron archivos .ttf en $FONTS_DIR"
-#  fi
-#}
+fase_fuentes() {
+  print_header "Fase 3 — Fuentes"
+
+  shopt -s nullglob
+  local fuentes=("$FONTS_DIR"/*.ttf "$FONTS_DIR"/*.otf)
+  shopt -u nullglob
+
+  if [ -d "$FONTS_DIR" ] && [ ${#fuentes[@]} -gt 0 ]; then
+    print_info "Instalando fuentes..."
+    mkdir -p ~/.local/share/fonts
+    
+    cp "${fuentes[@]}" ~/.local/share/fonts/
+    
+    fc-cache -fv > /dev/null 2>&1
+    
+    print_ok "Fuentes instaladas: ${#fuentes[@]} archivo(s)."
+    print_warn "Aplica las fuentes en: Ajustes del sistema > Fuentes (Fredoka Medium 12pt / 10pt)."
+  else
+    print_err "No se encontraron archivos .ttf ni .otf en $FONTS_DIR"
+  fi
+}
 
 fase_gamezone() {
   print_header "Fase 4 — Subvolumen Game Zone (Btrfs)"
@@ -184,28 +266,17 @@ resumen_manual() {
   echo "    • Evaluar mirrors (Colombia)"
   echo "    • Instalar paquetes de gaming (Wine, Proton, drivers)"
   echo ""
-  echo -e "  ${YELLOW}KDE — Apariencia${NC}"
-  echo "    • Tema global: Layan"
-  echo "    • Colores: ArchDark"
-  echo "    • Estilo de aplicaciones: Brisa"
-  echo "    • Estilo de Plasma: Arch-round"
-  echo "    • Decoraciones de ventanas: Layan"
-  echo "    • Iconos: Tela Dark"
-  echo "    • Cursores: Bibata-Modern-Ice"
-  echo "    • Splash screen: Kuro"
-  echo "    • Fuentes: Fredoka Medium 12pt (10pt para pequeños)"
-  echo ""
   echo -e "  ${YELLOW}KDE — Sistema${NC}"
   echo "    • SDDM: cambiar fondo de pantalla"
   echo "    • Efectos del escritorio: ventanas tambaleantes en 1"
   echo "    • Luz nocturna: activar"
-  echo "    • Atajo Meta+T para Konsole"
-  echo "    • Konsole: marcar perfil como predeterminado"
+  echo "    • Atajo Meta+T para Alacritty"
   echo ""
   echo -e "  ${YELLOW}Apps manuales${NC}"
   echo "    • Prism Launcher: instalar y seleccionar Java 17"
   echo "    • Snapshot maestra de Snapper (cuando el sistema esté listo)"
   echo ""
+  echo "Reinicia el sistema después de completar estos pasos para que todo quede aplicado correctamente."
 }
 
 # ─────────────────────────────────────────

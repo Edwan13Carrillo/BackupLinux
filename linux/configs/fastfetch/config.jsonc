@@ -1,131 +1,128 @@
-//    ______           __  ______      __ 
+//    ______           __  ______      __
 //   / ____/___ ______/ /_/ ____/___ _/ /_
 //  / /_  / __ `/ ___/ __/ /   / __ `/ __/
-// / __/ / /_/ (__  ) /_/ /___/ /_/ / /_  
-///_/    \__,_/____/\__/\____/\__,_/\__/  
+// / __/ / /_/ (__  ) /_/ /___/ /_/ / /_
+///_/    \__,_/____/\__/\____/\__,_/\__/
 //  https://github.com/m3tozz/FastCat
 {
     "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
     "logo": {
         "source": "~/.config/fastfetch/ascii.txt",
-                    "color": {
-        "1": "0"
-    }
+        "color": {
+            "1": "0"
+        }
     },
     "modules": [
         "break",
+
+        // ── OS / Software ──────────────────────────────────────────
         {
             "type": "custom",
-            "format": "\u001b[90m┌──────────────────────Hardware──────────────────────┐"
-        },
-        {
-            "type": "host",
-            "key": " PC",
-            "keyColor": "green"
-        },
-        {
-            "type": "cpu",
-            "key": "│ ├",
-            "showPeCoreCount": true,
-            "keyColor": "green"
-        },
-        {
-            "type": "gpu",
-            "key": "│ ├󰍛",
-            "keyColor": "green"
-        },
-        {
-            "type": "memory",
-            "key": "│ ├󰍛",
-            "keyColor": "green"
-        },
-        {
-            "type": "disk",
-            "key": "└ └",
-            "keyColor": "green"
-        },
-        {
-            "type": "custom",
-            "format": "\u001b[90m└────────────────────────────────────────────────────┘"
-        },
-        "break",
-        {
-            "type": "custom",
-            "format": "\u001b[90m┌──────────────────────Software──────────────────────┐"
+            "format": "\u001b[38;2;69;71;90m┌──────────────────────Software──────────────────────┐"
         },
         {
             "type": "os",
-            "key": " OS",
-            "keyColor": "yellow"
+            "key": "\u001b[38;2;137;180;250m  OS"
         },
         {
             "type": "kernel",
-            "key": "│ ├",
-            "keyColor": "yellow"
-        },
-        {
-            "type": "packages",
-            "key": "│ ├󰏖",
-            "keyColor": "yellow"
+            "key": "\u001b[38;2;137;180;250m│ ├ "
         },
         {
             "type": "shell",
-            "key": "└ └",
-            "keyColor": "yellow"
+            "key": "\u001b[38;2;137;180;250m│ ├ "
         },
+        {
+            "type": "terminal",
+            "key": "\u001b[38;2;137;180;250m└ └ "
+        },
+        {
+            "type": "custom",
+            "format": "\u001b[38;2;69;71;90m└────────────────────────────────────────────────────┘"
+        },
+
         "break",
+
+        // ── Desktop Environment ────────────────────────────────────
+        {
+            "type": "custom",
+            "format": "\u001b[38;2;69;71;90m┌──────────────────────Desktop───────────────────────┐"
+        },
         {
             "type": "de",
-            "key": " DE",
-            "keyColor": "blue"
-        },
-        {
-            "type": "lm",
-            "key": "│ ├",
-            "keyColor": "blue"
+            "key": "\u001b[38;2;203;166;247m  DE"
         },
         {
             "type": "wm",
-            "key": "│ ├",
-            "keyColor": "blue"
+            "key": "\u001b[38;2;203;166;247m│ ├ "
         },
         {
             "type": "wmtheme",
-            "key": "│ ├󰉼",
-            "keyColor": "blue"
+            "key": "\u001b[38;2;203;166;247m│ ├ 󰉼"
+        },
+        {
+            "type": "lm",
+            "key": "\u001b[38;2;203;166;247m│ ├ 󰍰"
+        },
+        {
+            "type": "custom",
+            "format": "\u001b[38;2;69;71;90m└────────────────────────────────────────────────────┘"
+        },
+
+        "break",
+
+        // ── Hardware ───────────────────────────────────────────────
+        {
+            "type": "custom",
+            "format": "\u001b[38;2;69;71;90m┌──────────────────────Hardware──────────────────────┐"
+        },
+        {
+            "type": "host",
+            "key": "\u001b[38;2;166;227;161m 󰇄 PC"
+        },
+        {
+            "type": "cpu",
+            "key": "\u001b[38;2;166;227;161m│ ├ ",
+            "showPeCoreCount": true
         },
         {
             "type": "gpu",
-            "key": "└ └󰍛",
-            "format": "{3}",
-            "keyColor": "blue"
+            "key": "\u001b[38;2;166;227;161m│ ├ 󰢮"
+        },
+        {
+            "type": "memory",
+            "key": "\u001b[38;2;166;227;161m│ ├ "
+        },
+        {
+            "type": "disk",
+            "key": "\u001b[38;2;166;227;161m└ └ 󰋊"
         },
         {
             "type": "custom",
-            "format": "\u001b[90m└────────────────────────────────────────────────────┘"
+            "format": "\u001b[38;2;69;71;90m└────────────────────────────────────────────────────┘"
         },
+
         "break",
+
+        // ── Uptime / Age ───────────────────────────────────────────
         {
             "type": "custom",
-            "format": "\u001b[90m┌────────────────────Uptime / Age────────────────────┐"
+            "format": "\u001b[38;2;69;71;90m┌────────────────────Uptime / Age────────────────────┐"
         },
         {
             "type": "command",
-            "key": "  OS Age ",
-            "keyColor": "magenta",
+            "key": "\u001b[38;2;250;179;135m  OS Age ",
             "text": "birth_install=$(stat -c %W /); current=$(date +%s); time_progression=$((current - birth_install)); days_difference=$((time_progression / 86400)); echo $days_difference days"
         },
         {
             "type": "uptime",
-            "key": "  Uptime ",
-            "keyColor": "magenta"
+            "key": "\u001b[38;2;250;179;135m  Uptime "
         },
         {
             "type": "custom",
-            "format": "\u001b[90m└────────────────────────────────────────────────────┘"
+            "format": "\u001b[38;2;69;71;90m└────────────────────────────────────────────────────┘"
         },
-        "break",
+
+        "break"
     ]
 }
-
-
