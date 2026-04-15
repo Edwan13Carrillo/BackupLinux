@@ -88,10 +88,10 @@ fase_dotfiles() {
   # ── Temas KDE (primero los archivos, luego la config) ──
 
   # Aurorae (decoraciones de ventanas)
-  if [ -d "$CONFIGS_DIR/local/aurorae/Layan" ]; then
+  if [ -d "$CONFIGS_DIR/local/Layan" ]; then
     print_info "Copiando tema de decoraciones Layan..."
     mkdir -p ~/.local/share/aurorae/themes
-    cp -r "$CONFIGS_DIR/local/aurorae/Layan/" ~/.local/share/aurorae/themes/
+    cp -r "$CONFIGS_DIR/local/Layan/" ~/.local/share/aurorae/themes/
     print_ok "Decoraciones Layan copiadas."
   else
     print_err "No se encontró la carpeta aurorae/Layan en $CONFIGS_DIR"
@@ -181,10 +181,10 @@ fase_dotfiles() {
   fi
 
   # Widget Clear Clock
-  if [ -d "$CONFIGS_DIR/widget" ]; then
+  if [ -d "$CONFIGS_DIR/org.kde.plasma.clearclock" ]; then
     print_info "Copiando widget Clear Clock..."
     mkdir -p ~/.local/share/plasma/plasmoids
-    cp -r "$CONFIGS_DIR/org.kde.plasma.clearclock/." ~/.local/share/plasma/plasmoids/
+    cp -r "$CONFIGS_DIR/org.kde.plasma.clearclock/" ~/.local/share/plasma/plasmoids/
     print_ok "Widget copiado."
     print_warn "Agrega el widget al escritorio, reemplaza su config.qml y luego refresca Plasma:"
     print_warn "kquitapp6 plasmashell && kstart5 plasmashell"
@@ -234,7 +234,7 @@ fase_snapper() {
   print_header "Fase 5 — Snapper (Snapshots)"
 
   print_info "Instalando snapper..."
-  sudo pacman -S --noconfirm --needed snapper snapper-support btrfs-assistant
+  sudo pacman -S --noconfirm --needed snapper cachyos-snapper-support btrfs-assistant
 
   print_info "Creando configuración root..."
   sudo snapper -c root create-config /
