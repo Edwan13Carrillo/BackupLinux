@@ -124,7 +124,16 @@ fase_dotfiles() {
     cp -r "$CONFIGS_DIR/local/a2n.kuro/" ~/.local/share/plasma/look-and-feel/
     print_ok "Look and feel copiado (Kuro)."
   else
-    print_err "No se encontró la carpeta look-and-feel en $CONFIGS_DIR"
+    print_err "No se encontró la carpeta a2n.kuro en $CONFIGS_DIR"
+  fi
+
+  # Pantalla de arranque (Pixels)
+  if [ -d "$CONFIGS_DIR/pixels/" ]; then
+    print_info "Copiando pantalla de arranque (pixels)..."
+    sudo cp -r "$CONFIGS_DIR/pixels/" /usr/share/plymouth/themes/
+    print_ok "Pantalla de arranque copiado (pixels)."
+  else
+    print_err "No se encontró la carpeta pixels en $CONFIGS_DIR"
   fi
 
   # Iconos Tela Dark
@@ -267,6 +276,69 @@ resumen_manual() {
 
   echo -e "  Los siguientes pasos ${BOLD}no se pueden automatizar${NC} y deben hacerse a mano:\n"
 
+  echo -e "  ${YELLOW}KDE — Sistema${NC}"
+  echo "    • SDDM: cambiar fondo de pantalla"
+  echo "    • Efectos del escritorio: ventanas tambaleantes en 1"
+  echo "    • Luz nocturna: activar"
+  echo "    • Atajo Meta+T para Alacritty"
+  echo ""
+  echo -e "  ${YELLOW}Apps manuales${NC}"
+  echo "    • Prism Launcher: instalar y seleccionar Java 17"
+  echo '    • Snapshot maestra: sudo snapper -c root create --description "Sistema base configurado"'
+  echo ""
+  echo "  Reinicia el sistema después de completar estos pasos para que todo quede aplicado correctamente."
+  echo ""
+
+  # ── Verificaciones automáticas ──
+  print_header "Verificaciones"
+
+  # Subvolumen Game Zone
+  echo -e "  ${CYAN}→${NC}  Subvolumen /games:"
+  sudo btrfs subvolume list /
+  if sudo btrfs subvolume list / | grep -q "games"; then
+    print_ok "Subvolumen /games encontrado."
+  else
+    print_err "Subvolumen /games NO encontrado."
+  fi
+
+  # Subvolumen
+  echo -e "  ${CYAN}→${NC}  Atributo NoCoW en /games:"
+  lsattr -d /games 2>/dev/null || print_err "No se pudo leer /games"
+
+  # Snapper configs
+  echo ""
+  echo -e "  ${CYAN}→${NC}  Configuraciones de Snapper (debe aparecer solo 'root'):"
+  sudo snapper list-configs 2>/dev/null
+
+  # Límites con valores esperados al lado
+  echo ""
+  echo -e "  ${CYAN}→${NC}  Límites de Snapper (valores esperados entre paréntesis):"
+  sudo grep -E 'TIMELINE_LIMIT|NUMBER_LIMIT' /etc/snapper/configs/root | while read -r line; do
+    key=$(echo "$line" | cut -d= -f1)
+    value=$(echo "$line" | cut -d= -f2)
+    case $key in
+      TIMELINE_LIMIT_DAILY)   expected='"5"'  ;;
+      TIMELINE_LIMIT_WEEKLY)  expected='"1"'  ;;
+      TIMELINE_LIMIT_HOURLY)  expected='"0"'  ;;
+      TIMELINE_LIMIT_MONTHLY) expected='"0"'  ;;
+      TIMELINE_LIMIT_YEARLY)  expected='"0"'  ;;
+      NUMBER_LIMIT)           expected='"0"'  ;;
+      NUMBER_LIMIT_IMPORTANT) expected='"15"' ;;
+      *) expected="?" ;;
+    esac
+    if [ "$value" = "$expected" ]; then
+      echo -e "    ${GREEN}✔${NC}  $key=$value (esperado: $expected)"
+    else
+      echo -e "    ${RED}✘${NC}  $key=$value (esperado: $expected)"
+    fi
+  done
+}
+
+pasos_inicio() {
+  print_header "Pasos manuales de inicio"
+
+  echo -e "  Los siguientes pasos ${BOLD}son de inicio${NC} y deben hacerse a mano:\n"
+
   echo -e "  ${YELLOW}CachyOS Hello${NC}"
   echo "    • Ananicy Cpp: Habilitado"
   echo "    • Cachy Update: Habilitado"
@@ -276,17 +348,23 @@ resumen_manual() {
   echo "    • Evaluar mirrors (Colombia)"
   echo "    • Instalar paquetes de gaming (Wine, Proton, drivers)"
   echo ""
-  echo -e "  ${YELLOW}KDE — Sistema${NC}"
-  echo "    • SDDM: cambiar fondo de pantalla"
-  echo "    • Efectos del escritorio: ventanas tambaleantes en 1"
-  echo "    • Luz nocturna: activar"
-  echo "    • Atajo Meta+T para Alacritty"
+
+  # ── Comandos importantes ──
+  print_header "Comandos importantes"
+  
+  echo -e "  Los siguientes comandos ${BOLD}son de referencia${NC} a futuro:\n"
+  echo "    • Listar snapshots:"
+  echo "      sudo snapper -c root list"
   echo ""
-  echo -e "  ${YELLOW}Apps manuales${NC}"
-  echo "    • Prism Launcher: instalar y seleccionar Java 17"
-  echo "    • Snapshot maestra de Snapper (cuando el sistema esté listo)"
+  echo "    • Borrar snapshots:"
+  echo "      sudo snapper -c root delete <número>"
   echo ""
-  echo "Reinicia el sistema después de completar estos pasos para que todo quede aplicado correctamente."
+  echo "    • Ver espacio de las snapshots:"
+  echo "      sudo bash -c 'btrfs filesystem du -s /.snapshots/*/snapshot'"
+  echo ""
+  echo -e "  ${YELLOW}⚠${NC}  El campo 'Total' incluye espacio compartido entre snapshots y parece mayor de lo real."
+  echo "      Ignorar 'Total'. El espacio real es el 'Set shared' (compartido entre todas)"
+  echo "      más el 'Exclusive' de cada snapshot (lo que ocupa de forma única)."
 }
 
 # ─────────────────────────────────────────
@@ -295,24 +373,34 @@ resumen_manual() {
 
 menu() {
   clear
+  pasos_inicio
+  pause
+
+  clear
   echo ""
   echo -e "${BLUE}${BOLD}  ╔══════════════════════════════════════╗${NC}"
   echo -e "${BLUE}${BOLD}  ║   Setup CachyOS KDE — Post-Install  ║${NC}"
   echo -e "${BLUE}${BOLD}  ╚══════════════════════════════════════╝${NC}"
   echo ""
-  echo -e "  ${BOLD}1.${NC} Correr todo de una"
-  echo -e "  ${BOLD}2.${NC} Fase 1 — Paquetes"
-  echo -e "  ${BOLD}3.${NC} Fase 2 — Dotfiles y configuraciones"
-  echo -e "  ${BOLD}4.${NC} Fase 3 — Fuentes"
-  echo -e "  ${BOLD}5.${NC} Fase 4 — Subvolumen Game Zone"
-  echo -e "  ${BOLD}6.${NC} Fase 5 — Snapper"
+  echo -e "  ${BOLD}1.${NC} Fase 1 — Paquetes"
+  echo -e "  ${BOLD}2.${NC} Fase 2 — Dotfiles y configuraciones"
+  echo -e "  ${BOLD}3.${NC} Fase 3 — Fuentes"
+  echo -e "  ${BOLD}4.${NC} Fase 4 — Subvolumen Game Zone"
+  echo -e "  ${BOLD}5.${NC} Fase 5 — Snapper"
+  echo -e "  ${BOLD}6.${NC} Correr todo de una"
   echo -e "  ${BOLD}7.${NC} Ver pasos manuales pendientes"
   echo -e "  ${BOLD}0.${NC} Salir"
   echo ""
   read -rp "  Elige una opción: " opcion
 
   case $opcion in
-    1)
+    1) fase_paquetes; pause ;;
+    2) fase_dotfiles; pause ;;
+    3) fase_fuentes; pause ;;
+    4) fase_gamezone; pause ;;
+    5) fase_snapper; pause ;;
+    6) resumen_manual; pause ;;
+    7)
       if confirmar "¿Correr todas las fases?"; then
         fase_paquetes; pause
         fase_dotfiles; pause
@@ -322,12 +410,6 @@ menu() {
         resumen_manual
       fi
       ;;
-    2) fase_paquetes; pause ;;
-    3) fase_dotfiles; pause ;;
-    4) fase_fuentes; pause ;;
-    5) fase_gamezone; pause ;;
-    6) fase_snapper; pause ;;
-    7) resumen_manual; pause ;;
     0) echo ""; echo -e "  ${GREEN}¡Hasta luego!${NC}"; echo ""; exit 0 ;;
     *) print_err "Opción no válida." ;;
   esac
