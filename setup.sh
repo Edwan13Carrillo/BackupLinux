@@ -67,6 +67,8 @@ fase_paquetes() {
     git \
     alacritty \
     fastfetch \
+    yt-dlp \
+    yad \
     base-devel \
     yay
 
