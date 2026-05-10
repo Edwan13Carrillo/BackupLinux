@@ -1,0 +1,11 @@
+# El entorno virtual que casi subes por error
+.venv/
+venv/
+
+# Basura que genera Python al ejecutarse
+__pycache__/
+*.pyc
+
+# Si usas VS Code u otros editores, esto también sobra
+.vscode/
+.idea/
