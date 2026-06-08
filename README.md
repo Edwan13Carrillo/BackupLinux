@@ -1,154 +1,56 @@
-# 🐧 Linux Backup & Restore Kit
+# BackupLinux 🐧
 
-Mi colección personal de configuraciones, scripts, recursos y notas para reinstalar Linux sin tener que volver a configurar todo desde cero.
-
-La idea es simple: después de una instalación limpia, ejecutar el setup y recuperar gran parte de mi entorno habitual de forma automática.
-
-## ✨ ¿Qué incluye?
-
-* Configuraciones de Linux y KDE.
-* Wallpapers e iconos.
-* Fuentes personalizadas.
-* Scripts útiles.
-* Herramientas de organización de archivos.
-* Configuración y notas para gaming.
-* Recursos de Minecraft.
-* Guía personal de reinstalación.
+> Mi respaldo personal de **CachyOS + KDE Plasma** — para cuando el sistema explota y hay que volver a armar todo sin querer llorar.
 
 ---
 
-# 🚀 Uso rápido
+## ¿Qué hay aquí?
+
+| Carpeta | Contenido |
+|---|---|
+| `setup.sh` | El jefe. Arma todo: dotfiles, fuentes, paquetes y más |
+| `linux/configs/` | Dotfiles de `alacritty`, `fastfetch`, KDE defaults, `.local/` y más |
+| `linux/fonts/` | Fuentes personalizadas: Fredoka, Okami, Earth Theory |
+| `linux/scripts/yt-dlp/` | Script para descargar videos/audio con yt-dlp |
+| `linux/scripts/organizar/` | Scripts en Python para organizar ASMR, música, anime y PDFs |
+| `gaming/notes/` | Configs y parámetros de Steam para distintos juegos |
+| `gaming/mc_skins/` | Skins de Minecraft |
+| `assets/wallpapers/` | Fondos de pantalla |
+| `assets/icons/` | Iconos |
+| `docs/` | Guía de reinstalación de CachyOS en PDF |
+
+---
+
+## Reinstalación rápida
 
 ```bash
+git clone https://github.com/tuusuario/BackupLinux.git
+cd BackupLinux
 chmod +x setup.sh
 ./setup.sh
 ```
 
-El script principal muestra un menú donde puedes:
+El script tiene un menú interactivo: podés instalar todo de una o ir eligiendo qué configurar. Sin magia negra, con opciones.
 
-* Instalar todo de una vez.
-* Elegir componentes específicos.
-* Restaurar configuraciones individuales.
+> 📄 Ver `docs/` para la guía completa de reinstalación.
 
 ---
 
-# 📂 Estructura del proyecto
+## Scripts destacados
 
-## setup.sh
+### 🎬 `linux/scripts/yt-dlp/ytdlp.sh`
+Descarga videos o audio desde YouTube y otras plataformas. Sin drama.
 
-El corazón del proyecto.
-
-Se encarga de mostrar el menú principal y automatizar la instalación o restauración de los distintos componentes.
-
----
-
-## docs/
-
-Documentación y guías.
-
-### Contenido
-
-* Guía de reinstalación de Linux en PDF.
+### 🗂️ `linux/scripts/organizar/`
+Sistema de organización automática de archivos. Dejás los archivos que quieras ordenar en la carpeta `orden/` y el `main.py` se encarga del resto. Organiza:
+- 🎵 Música
+- 🎧 ASMR
+- 🍙 Anime
+- 📚 PDFs (BL específicamente, sin juicio)
 
 ---
 
-## assets/
+## Notas
 
-Recursos visuales para el escritorio.
-
-### wallpapers/
-
-Fondos de pantalla.
-
-### icons/
-
-Paquetes de iconos y recursos gráficos.
-
----
-
-## gaming/
-
-Todo lo relacionado con juegos.
-
-### notes/
-
-Notas, configuraciones y parámetros útiles para Steam y otros juegos.
-
-### mc_skins/
-
-Colección de skins de Minecraft.
-
----
-
-## linux/
-
-Configuraciones y herramientas específicas de Linux.
-
-### configs/
-
-Archivos que el setup organiza automáticamente en sus ubicaciones correspondientes.
-
-Incluye configuraciones como:
-
-* `.local`
-* `kdedefaults`
-* `alacritty`
-* `fastfetch`
-* y otras configuraciones personales.
-
-El objetivo es recuperar el entorno habitual sin copiar archivos manualmente.
-
----
-
-### scripts/
-
-Scripts utilitarios.
-
-#### YtDlp/
-
-Herramientas relacionadas con yt-dlp.
-
-**ytdlp.sh**
-
-Script para facilitar descargas mediante yt-dlp.
-
----
-
-#### organizar/
-
-Sistema de organización automática de archivos.
-
-Incluye varios scripts Python para organizar:
-
-* Música
-* ASMR
-* Anime
-* PDF BL
-
-El archivo principal es:
-
-```text
-main.py
-```
-
-que coordina el resto de módulos.
-
-##### orden/
-
-Archivos auxiliares utilizados por el sistema de organización.
-
----
-
-### fonts/
-
-Fuentes personalizadas utilizadas en el sistema.
-
----
-
-# ⚠️ Nota
-
-Este proyecto está pensado principalmente para mi flujo de trabajo personal.
-
-Puede servir como referencia para crear tu propio sistema de backup y restauración, pero probablemente necesites adaptar algunas rutas, configuraciones o scripts a tu entorno.
-
-Si algo explota, al menos los wallpapers seguirán estando bonitos.
+- Los archivos sensibles (contraseñas, tokens) **nunca** se suben aquí. Obvio.
+- Este repo es personal, así que si algo no tiene sentido para vos, tiene todo el sentido para mí.
