@@ -4,8 +4,9 @@ modulo_bl_pdf.py — Módulo BL PDF del organizador multimedia.
 Formatos de salida:
   Normal       : 101-120 · Nombre de la Obra.pdf
   Con fin      : 121-129 Fin · Nombre de la Obra.pdf
-  Especial     : Especial 001-002 · Nombre de la Obra.pdf
-  Sin número   : Extra · Nombre de la Obra.pdf
+  Especial     : Especial / Especiales 001-002 · Nombre de la Obra.pdf
+  Sin número   : Extra / Extras · Nombre de la Obra.pdf
+  Con número   : Extra / Especial + 001 · Nombre de la Obra.pdf
   Oficial [LZ] : 101-120 · Nombre de la Obra [LZ].pdf
 
 Filosofía: CORRECTO solo si todo lo relevante se interpreta con confianza.
@@ -20,8 +21,8 @@ from utils import (
     CARPETA_TRABAJO,
     verificar_carpeta,
     listar_archivos,
-    mostrar_vista_previa,
     pedir_confirmacion,
+    limpiar_pantalla
 )
 
 # Separador visual del formato final
@@ -32,111 +33,30 @@ SEP = '·'
 # Normalización Unicode
 # ---------------------------------------------------------------------------
 
-# Tabla de dígitos Unicode estilizados → ASCII
-# Cubre: matemáticos en negrita, itálica, sans-serif, doble barra, etc.
-_DIGITOS_UNICODE: dict[int, str] = {}
-
-# Rangos de dígitos estilizados en Unicode (Mathematical Alphanumeric Symbols)
-_RANGOS_DIGITOS = [
-    0x1D7CE,  # Mathematical Bold Digit Zero
-    0x1D7D8,  # Mathematical Double-Struck Digit Zero
-    0x1D7E2,  # Mathematical Sans-Serif Digit Zero
-    0x1D7EC,  # Mathematical Sans-Serif Bold Digit Zero
-    0x1D7F6,  # Mathematical Monospace Digit Zero
-]
-for _base in _RANGOS_DIGITOS:
-    for _i in range(10):
-        _DIGITOS_UNICODE[_base + _i] = str(_i)
-
-# Superíndices numéricos
-_SUPERINDICES = {
-    ord('⁰'): '0', ord('¹'): '1', ord('²'): '2', ord('³'): '3',
-    ord('⁴'): '4', ord('⁵'): '5', ord('⁶'): '6', ord('⁷'): '7',
-    ord('⁸'): '8', ord('⁹'): '9',
-}
-_DIGITOS_UNICODE.update(_SUPERINDICES)
-
-# Tabla de letras estilizadas → ASCII (para palabras clave)
-# Se construye mapeando cada variante estilizada conocida carácter a carácter.
-# Palabras clave objetivo: Especial, Extra, Fin
-_LETRAS_UNICODE: dict[int, str] = {}
-
-# Rangos de letras mayúsculas estilizadas (Mathematical Alphanumeric Symbols)
-# Negrita, Itálica, Negrita Itálica, Script, Fraktur, Doble barra, Sans-serif, etc.
-_RANGOS_MAYUS = [
-    (0x1D400, 'A'),  # Bold
-    (0x1D434, 'A'),  # Italic
-    (0x1D468, 'A'),  # Bold Italic
-    (0x1D49C, 'A'),  # Script (con huecos)
-    (0x1D4D0, 'A'),  # Bold Script
-    (0x1D504, 'A'),  # Fraktur (con huecos)
-    (0x1D538, 'A'),  # Double-struck (con huecos)
-    (0x1D56C, 'A'),  # Bold Fraktur
-    (0x1D5A0, 'A'),  # Sans-serif
-    (0x1D5D4, 'A'),  # Sans-serif Bold
-    (0x1D608, 'A'),  # Sans-serif Italic
-    (0x1D63C, 'A'),  # Sans-serif Bold Italic
-    (0x1D670, 'A'),  # Monospace
-]
-_RANGOS_MINUS = [
-    (0x1D41A, 'a'),  # Bold
-    (0x1D44E, 'a'),  # Italic
-    (0x1D482, 'a'),  # Bold Italic
-    (0x1D4B6, 'a'),  # Script (con huecos)
-    (0x1D4EA, 'a'),  # Bold Script
-    (0x1D518, 'a'),  # Fraktur (con huecos)
-    (0x1D552, 'a'),  # Double-struck
-    (0x1D586, 'a'),  # Bold Fraktur
-    (0x1D5BA, 'a'),  # Sans-serif
-    (0x1D5EE, 'a'),  # Sans-serif Bold
-    (0x1D622, 'a'),  # Sans-serif Italic
-    (0x1D656, 'a'),  # Sans-serif Bold Italic
-    (0x1D68A, 'a'),  # Monospace
-]
-
-for _base, _letra_base in _RANGOS_MAYUS:
-    for _i in range(26):
-        _LETRAS_UNICODE[_base + _i] = chr(ord(_letra_base) + _i)
-
-for _base, _letra_base in _RANGOS_MINUS:
-    for _i in range(26):
-        _LETRAS_UNICODE[_base + _i] = chr(ord(_letra_base) + _i)
-
-# Tabla combinada
-_TABLA_UNICODE: dict[int, str] = {**_DIGITOS_UNICODE, **_LETRAS_UNICODE}
-
-
 def normalizar_unicode(texto: str) -> str:
     """
     Normaliza caracteres Unicode estilizados a ASCII.
-    Aplica:
-      1. Descomposición NFC para unificar formas equivalentes.
-      2. Mapeo carácter a carácter usando la tabla de estilizados.
-      3. Transliteración de caracteres con diacríticos via NFKD si siguen sin mapearse.
+    Aplica descomposición NFKD para unificar formas equivalentes (ej: ⓐ -> a)
+    y separa los diacríticos para filtrarlos.
     """
-    # Paso 1: NFC
-    texto = unicodedata.normalize('NFC', texto)
+    # Paso 0: Traductor manual para "Small Caps" (letras fonéticas/cirílicas)
+    # que los fansubs usan para simular mayúsculas chiquitas.
+    mapa_small_caps = str.maketrans(
+        "ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡʏᴢ", 
+        "abcdefghijklmnopqrstuvwyz"
+    )
+    texto_traducido = texto.translate(mapa_small_caps)
 
-    # Paso 2: mapeo de estilizados
-    resultado = []
-    for ch in texto:
-        cp = ord(ch)
-        if cp in _TABLA_UNICODE:
-            resultado.append(_TABLA_UNICODE[cp])
-        else:
-            resultado.append(ch)
-    texto = ''.join(resultado)
+    # Paso 1: NFKD convierte letras matemáticas/encerradas a normales y separa acentos
+    texto_descompuesto = unicodedata.normalize('NFKD', texto_traducido)
 
-    # Paso 3: NFKD para caracteres con diacríticos restantes
-    # Ej: é → e + combining accent → solo 'e' al filtrar non-ASCII combining marks
-    normalizado = unicodedata.normalize('NFKD', texto)
-    texto = ''.join(
-        ch for ch in normalizado
-        if unicodedata.category(ch) != 'Mn' or ord(ch) < 128
+    # Paso 2: Filtrar caracteres combinados (categoría 'Mn', que son los acentos)
+    texto_limpio = ''.join(
+        ch for ch in texto_descompuesto
+        if unicodedata.category(ch) != 'Mn'
     )
 
-    return texto
-
+    return texto_limpio
 
 # ---------------------------------------------------------------------------
 # Palabras clave y sus variantes
@@ -144,9 +64,9 @@ def normalizar_unicode(texto: str) -> str:
 
 # Después de normalizar, estas regex detectan las palabras clave.
 # Se aplican sobre el texto ya normalizado (ASCII-friendly).
-_RE_ESPECIAL = re.compile(r'\bEspecial\b', re.IGNORECASE)
-_RE_EXTRA    = re.compile(r'\bExtra\b',    re.IGNORECASE)
-_RE_FIN      = re.compile(r'\bFin\b',      re.IGNORECASE)
+_RE_ESPECIAL = re.compile(r'\b(especial(?:es)?)(?![a-zA-Z])', re.IGNORECASE)
+_RE_EXTRA    = re.compile(r'\b(extra(?:s)?)(?![a-zA-Z])',     re.IGNORECASE)
+_RE_FIN      = re.compile(r'\b(fin)(?![a-zA-Z])',             re.IGNORECASE)
 
 # Palabras que el programa NO conoce y que podrían significar algo
 # Si aparecen, el archivo va a DUDOSO.
@@ -165,113 +85,196 @@ _RE_NUMERO = re.compile(r'(\d+)')
 # Análisis de nombre
 # ---------------------------------------------------------------------------
 
+def pre_limpiar_simbolos_lote(archivos: list[str]) -> dict[str, str]:
+    """
+    Escanea todos los archivos buscando símbolos raros. Si los hay, pregunta al 
+    usuario si desea eliminarlos masivamente de los nombres en memoria.
+    Devuelve un diccionario: { nombre_archivo_original : nombre_archivo_limpio }
+    """
+    simbolos_encontrados = set()
+    nombres_limpios = {}
+
+    # Recolectar todos los símbolos raros del lote
+    for nombre in archivos:
+        nombre_sin_ext = os.path.splitext(nombre)[0]
+        for ch in nombre_sin_ext:
+            if es_caracter_sospechoso(ch):
+                simbolos_encontrados.add(ch)
+
+    # Si no hay símbolos raros, devolvemos los nombres tal cual
+    if not simbolos_encontrados:
+        for nombre in archivos:
+            nombres_limpios[nombre] = os.path.splitext(nombre)[0]
+        return nombres_limpios
+
+    # Si hay símbolos, preguntamos UNA sola vez
+    print()
+    print("  [!] ATENCIÓN: Se detectaron símbolos extraños en los nombres de este lote:")
+    print(f"      Símbolos: {' '.join(simbolos_encontrados)}")
+    
+    while True:
+        resp = input("  ¿Querés eliminarlos automáticamente de todos los archivos? (s/n): ").strip().lower()
+        if resp in ('s', 'si', 'sí', 'y', 'yes'):
+            ignorar = True
+            break
+        if resp in ('n', 'no'):
+            ignorar = False
+            break
+        print("  Respondé s o n.")
+
+    # Generamos el diccionario de nombres limpios (o intactos)
+    for nombre in archivos:
+        nombre_sin_ext = os.path.splitext(nombre)[0]
+        if ignorar:
+            # Borramos los símbolos raros
+            for sim in simbolos_encontrados:
+                nombre_sin_ext = nombre_sin_ext.replace(sim, '')
+            # Limpiamos espacios dobles que hayan podido quedar al borrar el símbolo
+            nombre_sin_ext = re.sub(r' {2,}', ' ', nombre_sin_ext).strip()
+            
+        nombres_limpios[nombre] = nombre_sin_ext
+
+    return nombres_limpios
+
+def _tiene_unicode_sospechoso(texto_original: str, texto_normalizado: str) -> str | None:
+    sospechosos = [ch for ch in texto_original if es_caracter_sospechoso(ch)]
+    if sospechosos:
+        muestra = ''.join(dict.fromkeys(sospechosos))[:6]
+        return f"Unicode estilizado detectado: '{muestra}' — revisar manualmente"
+    return None
+
+def es_caracter_sospechoso(ch: str) -> bool:
+    """Devuelve True solo si el carácter es un Símbolo puro (decoraciones, emojis, etc)."""
+    if ord(ch) < 128:
+        return False
+    
+    cat = unicodedata.category(ch)
+    
+    # L=Letras, N=Números (incluye ¹²³), M=Marcas (ּ࣪), P=Puntuación (│), Z=Espacios
+    if cat[0] in ('L', 'N', 'M', 'P', 'Z'):
+        return False
+        
+    # Permitir líneas y cajas decorativas estándar
+    if unicodedata.name(ch, '').startswith(('BOX DRAWINGS', 'BLOCK ELEMENT')):
+        return False
+        
+    # Todo lo demás (Símbolos puros, emojis, etc) es sospechoso
+    return True
+
 def analizar_nombre(nombre_sin_ext: str) -> dict:
     """
     Analiza el nombre de un archivo PDF (sin extensión) y devuelve un dict con:
       {
         'tipo'    : 'normal' | 'fin' | 'especial' | 'extra' | 'dudoso',
-        'inicio'  : int | None,   — primer número del rango
-        'fin_num' : int | None,   — segundo número del rango
-        'razon'   : str,          — explicación si es dudoso
+        'inicio'  : int | None,
+        'fin_num' : int | None,
+        'etiqueta': str | None,
+        'razon'   : str,
       }
 
-    Regla central: DUDOSO ante cualquier ambigüedad o texto sobrante importante.
+    Filosofía:
+      1. Normalizar Unicode.
+      2. Si quedó Unicode sospechoso sin normalizar → DUDOSO inmediato.
+      3. Buscar señales de tipo (Especial/Extra/Fin) y señales numéricas.
+      4. Clasificar con lo encontrado, ignorar el resto del texto.
     """
-    # Normalizar primero
+    # Paso 1: normalizar
     nombre_norm = normalizar_unicode(nombre_sin_ext)
 
-    # Detectar palabras sospechosas desconocidas → dudoso inmediato
+    # Paso 2: Unicode sospechoso — revisar ANTES de cualquier clasificación.
+    # Si hay caracteres estilizados que no se convirtieron, podrían ser palabras
+    # clave disfrazadas. No se ignoran silenciosamente.
+    razon_unicode = _tiene_unicode_sospechoso(nombre_sin_ext, nombre_norm)
+    if razon_unicode:
+        return {
+            'tipo': 'dudoso',
+            'inicio': None, 'fin_num': None,
+            'etiqueta': None,
+            'razon': razon_unicode,
+        }
+
+    # Paso 3: palabras desconocidas que podrían indicar un tipo diferente
     if _PALABRAS_SOSPECHOSAS.search(nombre_norm):
+        m = _PALABRAS_SOSPECHOSAS.search(nombre_norm)
         return {
             'tipo': 'dudoso',
             'inicio': None, 'fin_num': None,
-            'razon': f"Contiene palabra no reconocida: '{_PALABRAS_SOSPECHOSAS.search(nombre_norm).group()}'",
+            'etiqueta': None,
+            'razon': f"Contiene palabra de tipo desconocido: '{m.group()}'",
         }
 
-    tiene_especial = bool(_RE_ESPECIAL.search(nombre_norm))
-    tiene_extra    = bool(_RE_EXTRA.search(nombre_norm))
-    tiene_fin      = bool(_RE_FIN.search(nombre_norm))
+    # Paso 4: detectar palabras clave de tipo
+    m_especial = _RE_ESPECIAL.search(nombre_norm)
+    m_extra    = _RE_EXTRA.search(nombre_norm)
+    m_fin      = _RE_FIN.search(nombre_norm)
 
-    # Ambigüedad entre tipos
-    tipos_detectados = sum([tiene_especial, tiene_extra, tiene_fin])
-    if tipos_detectados > 1:
+    tiene_especial = bool(m_especial)
+    tiene_extra    = bool(m_extra)
+    tiene_fin      = bool(m_fin)
+
+    # Conflicto real entre tipos → dudoso
+    if (tiene_especial + tiene_extra + tiene_fin) > 1:
         return {
             'tipo': 'dudoso',
             'inicio': None, 'fin_num': None,
-            'razon': "Conflicto entre palabras clave (Especial/Extra/Fin combinadas)",
+            'etiqueta': None,
+            'razon': "Conflicto entre tipos detectados (Especial/Extra/Fin combinados)",
         }
 
-    # Detectar rango numérico
+    etiqueta = None
+    if tiene_especial:
+        etiqueta = m_especial.group(0).capitalize()
+    elif tiene_extra:
+        etiqueta = m_extra.group(0).capitalize()
+
+    # Paso 5: buscar rango numérico primero, luego número suelto
     m_rango = _RE_RANGO.search(nombre_norm)
+    m_num   = _RE_NUMERO.search(nombre_norm)
 
-    if tiene_extra and not m_rango:
-        # Extra sin número → "Extra · Obra.pdf"
-        # Verificar que no haya ningún número suelto que podría ser relevante
-        if _RE_NUMERO.search(nombre_norm):
+    # --- Extra / Especial sin número ---
+    if (tiene_extra or tiene_especial) and not m_rango and not m_num:
+        tipo = 'extra' if tiene_extra else 'especial'
+        return {'tipo': tipo, 'inicio': None, 'fin_num': None, 'etiqueta': etiqueta, 'razon': ''}
+
+    # --- Con rango ---
+    if m_rango:
+        inicio  = int(m_rango.group(1))
+        fin_num = int(m_rango.group(2))
+        if inicio > fin_num:
             return {
                 'tipo': 'dudoso',
                 'inicio': None, 'fin_num': None,
-                'razon': "Extra con número suelto sin rango claro",
+                'etiqueta': None,
+                'razon': f"Rango incoherente: {inicio} > {fin_num}",
             }
-        return {'tipo': 'extra', 'inicio': None, 'fin_num': None, 'razon': ''}
+        if tiene_especial:
+            return {'tipo': 'especial', 'inicio': inicio, 'fin_num': fin_num, 'etiqueta': etiqueta, 'razon': ''}
+        if tiene_extra:
+            return {'tipo': 'extra',    'inicio': inicio, 'fin_num': fin_num, 'etiqueta': etiqueta, 'razon': ''}
+        if tiene_fin:
+            return {'tipo': 'fin',      'inicio': inicio, 'fin_num': fin_num, 'etiqueta': None, 'razon': ''}
+        return     {'tipo': 'normal',   'inicio': inicio, 'fin_num': fin_num, 'etiqueta': None, 'razon': ''}
 
-    if not m_rango:
-        # Sin rango: buscar número suelto
-        m_num = _RE_NUMERO.search(nombre_norm)
-        if not m_num:
-            return {
-                'tipo': 'dudoso',
-                'inicio': None, 'fin_num': None,
-                'razon': "Sin número ni rango detectado",
-            }
-        # Número suelto sin rango → dudoso (no hay forma segura de saber si
-        # es un capítulo único o algo más; preferimos que el usuario lo revise)
-        return {
-            'tipo': 'dudoso',
-            'inicio': None, 'fin_num': None,
-            'razon': f"Número suelto '{m_num.group()}' sin rango — revisar manualmente",
-        }
+    # --- Con número suelto ---
+    if m_num:
+        numero = int(m_num.group(1))
+        if tiene_especial:
+            return {'tipo': 'especial', 'inicio': numero, 'fin_num': None, 'etiqueta': etiqueta, 'razon': ''}
+        if tiene_extra:
+            return {'tipo': 'extra',    'inicio': numero, 'fin_num': None, 'etiqueta': etiqueta, 'razon': ''}
+        if tiene_fin:
+            return {'tipo': 'fin',      'inicio': numero, 'fin_num': None, 'etiqueta': None, 'razon': ''}
+        return     {'tipo': 'normal',   'inicio': numero, 'fin_num': None, 'etiqueta': None, 'razon': ''}
 
-    inicio  = int(m_rango.group(1))
-    fin_num = int(m_rango.group(2))
-
-    # Validar coherencia del rango
-    if inicio > fin_num:
-        return {
-            'tipo': 'dudoso',
-            'inicio': None, 'fin_num': None,
-            'razon': f"Rango incoherente: {inicio} > {fin_num}",
-        }
-
-    # Verificar texto sobrante relevante DESPUÉS de quitar lo ya interpretado
-    texto_restante = nombre_norm
-    texto_restante = _RE_RANGO.sub('', texto_restante)
-    if tiene_especial:
-        texto_restante = _RE_ESPECIAL.sub('', texto_restante)
+    # --- Sin ninguna señal numérica ---
     if tiene_extra:
-        texto_restante = _RE_EXTRA.sub('', texto_restante)
-    if tiene_fin:
-        texto_restante = _RE_FIN.sub('', texto_restante)
-
-    # Limpiar separadores y espacios residuales del texto restante
-    texto_restante = re.sub(r'[\s\-_.·\[\](),]+', '', texto_restante)
-
-    # Si queda texto significativo (más de 1 carácter no trivial), es dudoso
-    if len(texto_restante) > 1:
-        return {
-            'tipo': 'dudoso',
-            'inicio': inicio, 'fin_num': fin_num,
-            'razon': f"Texto sobrante no interpretado: '{texto_restante}'",
-        }
-
-    # Clasificar tipo final
+        return {'tipo': 'extra', 'inicio': None, 'fin_num': None, 'etiqueta': etiqueta, 'razon': ''}
     if tiene_especial:
-        return {'tipo': 'especial', 'inicio': inicio, 'fin_num': fin_num, 'razon': ''}
+        return {'tipo': 'especial', 'inicio': None, 'fin_num': None, 'etiqueta': etiqueta, 'razon': ''}
     if tiene_fin:
-        return {'tipo': 'fin',      'inicio': inicio, 'fin_num': fin_num, 'razon': ''}
+        return {'tipo': 'fin', 'inicio': None, 'fin_num': None, 'etiqueta': None, 'razon': ''}
 
-    # Normal
-    return {'tipo': 'normal', 'inicio': inicio, 'fin_num': fin_num, 'razon': ''}
+    return {'tipo': 'dudoso', 'inicio': None, 'fin_num': None, 'etiqueta': None, 'razon': "Sin número ni rango detectado"}
 
 
 # ---------------------------------------------------------------------------
@@ -281,53 +284,57 @@ def analizar_nombre(nombre_sin_ext: str) -> dict:
 def construir_nombre_final(analisis: dict, nombre_obra: str, es_lz: bool) -> str:
     """
     Construye el nombre final según el tipo detectado.
+    Todos los números se formatean a 3 dígitos.
 
-    Normal    : 101-120 · Nombre de la Obra.pdf
-    Fin       : 121-129 Fin · Nombre de la Obra.pdf
-    Especial  : Especial 001-002 · Nombre de la Obra.pdf
-    Extra     : Extra · Nombre de la Obra.pdf
-    [LZ]      : agrega '[LZ]' antes de .pdf
+    Normal   : 001-010 · Nombre de la Obra.pdf  (o "005 · Obra.pdf" si es suelto)
+    Fin      : 121-129 Fin · Nombre de la Obra.pdf
+    Especial : Especial / Especiales 001-002 · Nombre de la Obra.pdf
+    Extra    : Extra / Extras · Nombre de la Obra.pdf
+    [LZ]     : agrega '[LZ]' antes de .pdf
     """
     sufijo_lz = ' [LZ]' if es_lz else ''
     tipo      = analisis['tipo']
     inicio    = analisis['inicio']
     fin_num   = analisis['fin_num']
+    etiqueta  = analisis.get('etiqueta')
+
+    def _rango(a, b):
+        """Rango o número suelto, siempre con zero-padding a 3 dígitos."""
+        if a is None:
+            return None
+        if b is not None:
+            return f"{a:03d}-{b:03d}"
+        return f"{a:03d}"
+
+    rango = _rango(inicio, fin_num)
 
     if tipo == 'normal':
-        rango = f"{inicio}-{fin_num}"
         nombre = f"{rango} {SEP} {nombre_obra}{sufijo_lz}.pdf"
 
     elif tipo == 'fin':
-        rango = f"{inicio}-{fin_num}"
-        nombre = f"{rango} Fin {SEP} {nombre_obra}{sufijo_lz}.pdf"
+        if rango is None:
+            nombre = f"Fin {SEP} {nombre_obra}{sufijo_lz}.pdf"
+        else:
+            nombre = f"{rango} Fin {SEP} {nombre_obra}{sufijo_lz}.pdf"
 
     elif tipo == 'especial':
-        rango = f"{inicio:03d}-{fin_num:03d}"
-        nombre = f"Especial {rango} {SEP} {nombre_obra}{sufijo_lz}.pdf"
+        prefijo = etiqueta or 'Especial'
+        if rango is None:
+            nombre = f"{prefijo} {SEP} {nombre_obra}{sufijo_lz}.pdf"
+        else:
+            nombre = f"{prefijo} {rango} {SEP} {nombre_obra}{sufijo_lz}.pdf"
 
     elif tipo == 'extra':
-        nombre = f"Extra {SEP} {nombre_obra}{sufijo_lz}.pdf"
+        prefijo = etiqueta or 'Extra'
+        if rango is None:
+            nombre = f"{prefijo} {SEP} {nombre_obra}{sufijo_lz}.pdf"
+        else:
+            nombre = f"{prefijo} {rango} {SEP} {nombre_obra}{sufijo_lz}.pdf"
 
     else:
-        # Dudoso: no debería llegar aquí, pero por seguridad
         nombre = None
 
     return nombre
-
-
-def nombre_ya_correcto(nombre_sin_ext: str, nombre_obra: str, es_lz: bool) -> bool:
-    """
-    Verifica si el nombre actual ya coincide exactamente con el formato esperado,
-    para evitar marcarlo como 'formato_incorrecto' cuando ya está bien.
-    """
-    analisis = analizar_nombre(nombre_sin_ext)
-    if analisis['tipo'] == 'dudoso':
-        return False
-    nombre_esperado = construir_nombre_final(analisis, nombre_obra, es_lz)
-    if nombre_esperado is None:
-        return False
-    return (nombre_sin_ext + '.pdf') == nombre_esperado
-
 
 # ---------------------------------------------------------------------------
 # Gestión de [LZ]
@@ -515,6 +522,7 @@ def _aplicar_renombrado(cambios: list[dict]):
 # ---------------------------------------------------------------------------
 
 def opcion_organizar():
+    limpiar_pantalla()
     print("\n  --- Organizar BL PDF ---\n")
 
     if not verificar_carpeta():
@@ -538,14 +546,19 @@ def opcion_organizar():
     # Paso 2: gestión [LZ]
     mapa_lz = preguntar_lz(archivos)
 
+    # NUEVO PASO: Limpieza global de símbolos
+    nombres_pre_limpios = pre_limpiar_simbolos_lote(archivos)
+
     # Paso 3: analizar cada archivo
     procesables = []   # {'nombre', 'analisis', 'es_lz'}
     dudosos_raw = []   # {'nombre', 'razon'}
 
     for nombre in archivos:
-        nombre_sin_ext = os.path.splitext(nombre)[0]
-        analisis       = analizar_nombre(nombre_sin_ext)
-        es_lz          = mapa_lz.get(nombre, False)
+        # AQUÍ ESTÁ LA MAGIA: usamos el nombre limpio (sin símbolos raros) para analizar
+        nombre_para_analizar = nombres_pre_limpios[nombre]
+        
+        analisis = analizar_nombre(nombre_para_analizar)
+        es_lz    = mapa_lz.get(nombre, False)
 
         if analisis['tipo'] == 'dudoso':
             dudosos_raw.append({'nombre': nombre, 'razon': analisis['razon']})
@@ -624,18 +637,19 @@ def opcion_organizar():
 def menu_bl_pdf():
     while True:
         print()
-        print("=" * 60)
+        print("=" * 30)
         print("  MODULO BL PDF")
-        print("=" * 60)
+        print("=" * 30)
         print("  1. Organizar PDFs")
         print("  2. Volver al menú principal")
-        print("=" * 60)
+        print("=" * 30)
 
         opcion = input("  Seleccioná una opción: ").strip()
 
         if opcion == '1':
             opcion_organizar()
         elif opcion == '2':
+            limpiar_pantalla()
             break
         else:
             print("\n  Opción no válida. Ingresá 1 o 2.\n")

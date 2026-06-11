@@ -6,6 +6,7 @@ Extensiones   : .flac y .m4a
 """
 
 import os
+import re
 
 try:
     from mutagen.mp4  import MP4
@@ -19,12 +20,12 @@ except ImportError:
 from utils import (
     CARPETA_TRABAJO,
     verificar_carpeta,
-    listar_archivos,
     detectar_numero,
     formatear_numero,
     clasificar_archivo,
     mostrar_vista_previa,
     pedir_confirmacion,
+    limpiar_pantalla
 )
 
 EXTENSIONES_MUSICA = ('.flac', '.m4a')
@@ -69,6 +70,32 @@ def pedir_titulo(nombre_archivo: str) -> str:
         if valor:
             return valor
         print("  El campo no puede estar vacío.")
+
+
+# ---------------------------------------------------------------------------
+# Sanitización de nombres
+# ---------------------------------------------------------------------------
+
+# Caracteres inválidos en sistemas de archivos Linux/Windows
+_CHARS_INVALIDOS = re.compile(r'[\\/:*?"<>|]')
+# Espacios múltiples y espacios al inicio/fin
+_ESPACIOS_MULTIPLES = re.compile(r' {2,}')
+
+def sanitizar_titulo(titulo: str) -> str:
+    """
+    Limpia el título para que sea un nombre de archivo válido.
+    - Reemplaza caracteres inválidos por guion o los elimina.
+    - Colapsa espacios múltiples.
+    - Quita espacios al inicio y fin.
+    """
+    # Caracteres con reemplazo semántico
+    titulo = titulo.replace('"', "'").replace('/', '-').replace('\\', '-')
+    # Resto de inválidos: eliminar directamente
+    titulo = _CHARS_INVALIDOS.sub('', titulo)
+    # Limpiar espacios
+    titulo = _ESPACIOS_MULTIPLES.sub(' ', titulo).strip()
+    # Evitar nombre vacío tras sanitizar
+    return titulo or 'Sin título'
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +182,7 @@ def mostrar_resumen_modulo(info: dict):
 # ---------------------------------------------------------------------------
 
 def opcion_ordenar():
+    limpiar_pantalla()
     print("\n  --- Ordenar nombres de música ---\n")
 
     if not verificar_carpeta():
@@ -167,7 +195,7 @@ def opcion_ordenar():
     archivos = info['musica']
 
     if not archivos:
-        print("  No se encontraron archivos .flac ni .m4a en ./organizar\n")
+        print("  No se encontraron archivos .flac ni .m4a en ./ordenar\n")
         return
 
     cambios      = []
@@ -193,6 +221,7 @@ def opcion_ordenar():
         titulo = leer_titulo(ruta)
         if not titulo:
             titulo = pedir_titulo(nombre)
+        titulo = sanitizar_titulo(titulo)
 
         nombre_nuevo = construir_nombre_final(numero, titulo, ext)
 
@@ -250,6 +279,7 @@ def _aplicar_renombrado(cambios: list[dict]):
 # ---------------------------------------------------------------------------
 
 def opcion_insertar():
+    limpiar_pantalla()
     print("\n  --- Insertar canciones a la lista ---\n")
 
     if not verificar_carpeta():
@@ -263,11 +293,11 @@ def opcion_insertar():
     organizados = []
     sin_numero  = info['sin_numero']
 
-    for nombre in info['musica']:
+    # Vamos directo al grano con los que ya están en formato
+    for nombre in info['organizados']:
         nombre_sin_ext = os.path.splitext(nombre)[0]
         numero = detectar_numero(nombre_sin_ext)
-        if numero is not None:
-            organizados.append({'nombre': nombre, 'numero': numero})
+        organizados.append({'nombre': nombre, 'numero': numero})
 
     organizados.sort(key=lambda x: x['numero'])
 
@@ -311,7 +341,7 @@ def opcion_insertar():
         titulo = leer_titulo(ruta)
         if not titulo:
             titulo = pedir_titulo(ins['nombre'])
-        titulos_nuevos[ins['nombre']] = titulo
+        titulos_nuevos[ins['nombre']] = sanitizar_titulo(titulo)
 
     # Construir cambios
     cambios = []
@@ -325,19 +355,15 @@ def opcion_insertar():
             titulo       = titulos_nuevos[nombre_orig]
             nombre_nuevo = construir_nombre_final(numero_nuevo, titulo, ext)
         else:
-            # Archivo ya organizado — leer título o extraer del nombre
-            ruta   = os.path.join(CARPETA_TRABAJO, nombre_orig)
-            titulo = leer_titulo(ruta)
+            # Archivo ya organizado — conservar el título exactamente como
+            # aparece en el nombre actual, sin releer metadatos.
+            titulo = _extraer_titulo_del_nombre(nombre_orig)
 
             if not titulo:
-                titulo = _extraer_titulo_del_nombre(nombre_orig)
+                # Caso raro: nombre no tiene formato esperado, pedir al usuario
+                titulo = pedir_titulo(nombre_orig)
 
-            if titulo:
-                nombre_nuevo = construir_nombre_final(numero_nuevo, titulo, ext)
-            else:
-                # No se pudo obtener el título: pedir al usuario
-                titulo       = pedir_titulo(nombre_orig)
-                nombre_nuevo = construir_nombre_final(numero_nuevo, titulo, ext)
+            nombre_nuevo = construir_nombre_final(numero_nuevo, titulo, ext)
 
         cambios.append({
             'original': nombre_orig,
@@ -455,13 +481,13 @@ def menu_musica():
 
     while True:
         print()
-        print("=" * 60)
+        print("=" * 30)
         print("  MODULO MUSICA")
-        print("=" * 60)
+        print("=" * 30)
         print("  1. Ordenar nombres")
         print("  2. Insertar canciones a la lista")
         print("  3. Volver al menú principal")
-        print("=" * 60)
+        print("=" * 30)
 
         opcion = input("  Seleccioná una opción: ").strip()
 
@@ -470,6 +496,7 @@ def menu_musica():
         elif opcion == '2':
             opcion_insertar()
         elif opcion == '3':
+            limpiar_pantalla()
             break
         else:
             print("\n  Opción no válida. Ingresá 1, 2 o 3.\n")

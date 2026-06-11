@@ -5,7 +5,10 @@ utils.py — Funciones compartidas del organizador multimedia.
 import re
 import os
 
-
+def limpiar_pantalla():
+    """Limpia la terminal según el sistema operativo."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
 # ---------------------------------------------------------------------------
 # Detección de número en nombre de archivo
 # ---------------------------------------------------------------------------
@@ -71,9 +74,9 @@ def mostrar_vista_previa(cambios: list[dict], advertencias: list[str] = None):
       - 'estado':   'correcto' | 'formato_incorrecto' | 'sin_numero' | 'dudoso'
     """
     print()
-    print("=" * 60)
+    print("=" * 30)
     print("  VISTA PREVIA DE CAMBIOS")
-    print("=" * 60)
+    print("=" * 30)
 
     if advertencias:
         print()
@@ -114,10 +117,10 @@ def mostrar_vista_previa(cambios: list[dict], advertencias: list[str] = None):
             print(f"    [!] {c['original']}")
         print()
 
-    print("=" * 60)
+    print("=" * 30)
     total_cambios = len(con_cambio)
     print(f"  Total de renombrados: {total_cambios}")
-    print("=" * 60)
+    print("=" * 30)
     print()
 
 
@@ -140,7 +143,7 @@ CARPETA_TRABAJO = os.path.join('.', 'ordenar')
 
 
 def verificar_carpeta() -> bool:
-    """Verifica que la carpeta ./organizar existe. Si no, avisa y devuelve False."""
+    """Verifica que la carpeta ./ordenar existe. Si no, avisa y devuelve False."""
     if not os.path.isdir(CARPETA_TRABAJO):
         print(f"\n  [ERROR] No se encontró la carpeta '{CARPETA_TRABAJO}'.")
         print("  Creá la carpeta y colocá los archivos dentro antes de continuar.\n")

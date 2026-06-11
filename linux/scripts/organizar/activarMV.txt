@@ -1,5 +1,0 @@
-python -m venv venv #Esto crea el entorno virtual, con esto ya se puede usar pip install solo para esa carpeta.
-
-source venv/bin/activate o source venv/bin/activate.fish #Esto activa el entorno virtual
-
-deactivate #Esto desactiva el entorno virtual

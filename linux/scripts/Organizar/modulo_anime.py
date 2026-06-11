@@ -1,7 +1,7 @@
 """
 modulo_anime.py — Módulo Anime del organizador multimedia.
 
-Formato final : 000 - Nombre del anime.mkv
+Formato final : 00 - Nombre del anime.mkv
 Extensión     : .mkv
 
 Filosofía: no adivinar de forma agresiva. Si hay ambigüedad, marcar
@@ -15,10 +15,15 @@ from utils import (
     CARPETA_TRABAJO,
     verificar_carpeta,
     listar_archivos,
-    formatear_numero,
     mostrar_vista_previa,
     pedir_confirmacion,
+    limpiar_pantalla
 )
+
+
+def _formatear_numero_anime(numero: int) -> str:
+    """Formatea el episodio con al menos 2 dígitos (01, 02, 03...)."""
+    return f"{numero:02d}"
 
 
 # ---------------------------------------------------------------------------
@@ -27,27 +32,26 @@ from utils import (
 # Cada patrón devuelve el número de episodio en el grupo 1.
 # ---------------------------------------------------------------------------
 
-# Marcadores de material especial (openings, endings, etc.)
-# Si el nombre contiene alguno de estos, el archivo se trata como especial.
-_MARCADORES_ESPECIALES = re.compile(
-    r'\b(NCOP|NCED|OP\d*|ED\d*|SP\d*|OVA\d*|OAD\d*|SPECIAL)\b',
-    re.IGNORECASE,
-)
-
 _PATRONES_EPISODIO = [
     # S01E26, S04E02, S05E01v2  →  captura el número de episodio (E parte)
-    re.compile(r'S\d{1,2}E(\d{1,4})(?:v\d+)?', re.IGNORECASE),
+    re.compile(r'\bS\d{1,2}E(\d{1,4})(?:v\d+)?\b', re.IGNORECASE),
 
-    # "- 07" o "- 07." al final o antes de extensión/corchetes
-    # Cubre: "Kimetsu no Yaiba - Mugen Ressha-hen - 07.mkv"
-    re.compile(r'-\s+(\d{1,4})(?:\s*[\[.]|$)'),
+    # Episode 07 / Episodio 07 / Ep 07 / Cap 07
+    re.compile(
+        r'\b(?:EP(?:ISODE)?|Episodio|Episódio|Cap(?:itulo|ítulo)?)\s*0*(\d{1,4})\b',
+        re.IGNORECASE,
+    ),
+
+    # "- 07" antes de un bloque de metadatos, extensión o fin de cadena.
+    # Cubre: "[Erai-raws] Serie - 07 [1080p ...].mkv"
+    # y también "Serie - 07.mkv"
+    re.compile(r'(?<!\d)-\s*0*(\d{1,4})(?=\s*(?:\[|\(|\.|$))'),
 
     # Número aislado al inicio: "09 The Promised Neverland.mkv"
-    re.compile(r'^\s*(\d{1,4})\s+'),
+    re.compile(r'^\s*0*(\d{1,4})(?=\s+)'),
 
     # Número aislado al final antes de corchetes o extensión
-    # "[Erai-raws] Serie - 07 [1080p ...].mkv"
-    re.compile(r'\s(\d{1,4})\s*(?:\[|$)'),
+    re.compile(r'\s0*(\d{1,4})(?=\s*(?:\[|\(|\.|$))'),
 ]
 
 
@@ -61,54 +65,18 @@ def detectar_episodio(nombre_sin_ext: str) -> tuple[int | None, str]:
 
     Devuelve:
       (numero, estado)
-      - estado puede ser: 'ok', 'especial', 'dudoso'
+      - estado puede ser: 'ok', 'dudoso'
 
     'dudoso' se produce cuando:
-      - hay más de un número posible y los patrones no coinciden claramente, o
       - ningún patrón detecta el episodio.
     """
-    # Primero verificar si es material especial
-    if _MARCADORES_ESPECIALES.search(nombre_sin_ext):
-        return None, 'especial'
-
-    coincidencias = []
-
+    
     for patron in _PATRONES_EPISODIO:
         m = patron.search(nombre_sin_ext)
         if m:
-            numero = int(m.group(1))
-            coincidencias.append(numero)
-            # El primer patrón que coincide es el más confiable
-            # Si coincide S01E26 (patrón 0), confiamos directo
-            if patron == _PATRONES_EPISODIO[0]:
-                return numero, 'ok'
-            break  # Solo tomamos el primer patrón que matchea
+            return int(m.group(1)), 'ok'
 
-    if not coincidencias:
-        return None, 'dudoso'
-
-    # Verificar ambigüedad: buscar todos los números en el nombre
-    todos_los_numeros = re.findall(r'\d+', nombre_sin_ext)
-    numeros_relevantes = [int(n) for n in todos_los_numeros if 1 <= int(n) <= 9999]
-
-    # Si hay muchos números distintos y el detectado no es el único candidato
-    # razonable, marcar como dudoso
-    candidatos_unicos = set(numeros_relevantes)
-    if len(candidatos_unicos) > 2:
-        # Más de 2 números distintos en el nombre = potencialmente ambiguo
-        # Pero si el patrón más específico (- NN) coincidió, confiamos igual
-        numero_detectado = coincidencias[0]
-        # Heurística: si el número detectado aparece solo una vez, confiar
-        if numeros_relevantes.count(numero_detectado) == 1 and len(candidatos_unicos) > 3:
-            return numero_detectado, 'dudoso'
-
-    return coincidencias[0], 'ok'
-
-
-def es_especial(nombre_sin_ext: str) -> bool:
-    """Devuelve True si el archivo parece ser opening, ending u otro especial."""
-    return bool(_MARCADORES_ESPECIALES.search(nombre_sin_ext))
-
+    return None, 'dudoso'
 
 # ---------------------------------------------------------------------------
 # Resolución de dudosos: intervención del usuario
@@ -124,9 +92,9 @@ def resolver_dudosos(dudosos: list[str]) -> dict[str, int | None]:
     resultado = {}
 
     print()
-    print("=" * 60)
+    print("=" * 30)
     print("  ARCHIVOS DUDOSOS — se requiere intervención")
-    print("=" * 60)
+    print("=" * 30)
     print("  Para cada archivo, escribí el número de episodio correcto")
     print("  o presioná Enter para saltarlo (no se renombrará).")
     print()
@@ -145,7 +113,7 @@ def resolver_dudosos(dudosos: list[str]) -> dict[str, int | None]:
                     print("  El número debe ser mayor a 0.")
                     continue
                 resultado[nombre] = numero
-                print(f"  → Asignado episodio {numero:03d}.\n")
+                print(f"  → Asignado episodio {numero:02d}.\n")
                 break
             except ValueError:
                 print("  Ingresá un número entero válido o Enter para saltar.")
@@ -158,8 +126,8 @@ def resolver_dudosos(dudosos: list[str]) -> dict[str, int | None]:
 # ---------------------------------------------------------------------------
 
 def construir_nombre_final(numero: int, nombre_anime: str) -> str:
-    """Construye '000 - Nombre del anime.mkv'"""
-    return f"{formatear_numero(numero)} - {nombre_anime}.mkv"
+    """Construye '00 - Nombre del anime.mkv'"""
+    return f"{_formatear_numero_anime(numero)} - {nombre_anime}.mkv"
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +135,7 @@ def construir_nombre_final(numero: int, nombre_anime: str) -> str:
 # ---------------------------------------------------------------------------
 
 def opcion_ordenar():
+    limpiar_pantalla()
     print("\n  --- Ordenar nombres de Anime ---\n")
 
     if not verificar_carpeta():
@@ -182,26 +151,16 @@ def opcion_ordenar():
 
     # Clasificar archivos
     procesables = []   # {'nombre': str, 'numero': int}
-    especiales  = []   # nombres de archivos especiales
     dudosos     = []   # nombres de archivos dudosos
 
     for nombre in archivos:
         nombre_sin_ext = os.path.splitext(nombre)[0]
         numero, estado = detectar_episodio(nombre_sin_ext)
 
-        if estado == 'especial':
-            especiales.append(nombre)
-        elif estado == 'dudoso' or numero is None:
+        if estado == 'dudoso' or numero is None:
             dudosos.append(nombre)
         else:
             procesables.append({'nombre': nombre, 'numero': numero})
-
-    # Mostrar especiales detectados
-    if especiales:
-        print()
-        print(f"  Archivos especiales detectados ({len(especiales)}) — se omiten:")
-        for nombre in especiales:
-            print(f"    [OP/ED/SP] {nombre}")
 
     # Resolver dudosos antes de continuar
     resolucion_dudosos = {}
@@ -236,7 +195,7 @@ def opcion_ordenar():
         n = p['numero']
         if n in numeros_vistos:
             advertencias.append(
-                f"Episodio {n:03d} duplicado: '{p['nombre']}' y '{numeros_vistos[n]}'"
+                f"Episodio {n:02d} duplicado: '{p['nombre']}' y '{numeros_vistos[n]}'"
             )
         else:
             numeros_vistos[n] = p['nombre']
@@ -266,14 +225,6 @@ def opcion_ordenar():
                 'estado':   'dudoso',
             })
 
-    # Agregar especiales a la vista previa como "sin número"
-    for nombre in especiales:
-        cambios.append({
-            'original': nombre,
-            'nuevo':    nombre,
-            'estado':   'sin_numero',
-        })
-
     mostrar_vista_previa(cambios, advertencias if advertencias else None)
 
     hay_cambios = any(
@@ -294,7 +245,7 @@ def opcion_ordenar():
 
 
 def _aplicar_renombrado(cambios: list[dict]):
-    """Aplica el renombrado, omitiendo dudosos y especiales."""
+    """Aplica el renombrado, omitiendo dudosos."""
     SUFIJO_TEMP = '.__tmp__'
     aplicados   = 0
     errores     = 0
@@ -344,18 +295,19 @@ def _aplicar_renombrado(cambios: list[dict]):
 def menu_anime():
     while True:
         print()
-        print("=" * 60)
+        print("=" * 30)
         print("  MODULO ANIME")
-        print("=" * 60)
+        print("=" * 30)
         print("  1. Ordenar nombres")
         print("  2. Volver al menú principal")
-        print("=" * 60)
+        print("=" * 30)
 
         opcion = input("  Seleccioná una opción: ").strip()
 
         if opcion == '1':
             opcion_ordenar()
         elif opcion == '2':
+            limpiar_pantalla()
             break
         else:
             print("\n  Opción no válida. Ingresá 1 o 2.\n")

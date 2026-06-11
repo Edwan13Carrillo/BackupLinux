@@ -8,19 +8,18 @@ from modulo_musica  import menu_musica
 from modulo_anime   import menu_anime
 from modulo_bl_pdf  import menu_bl_pdf
 
-
 def menu_principal():
     while True:
         print()
-        print("=" * 60)
+        print("=" * 30)
         print("  ORGANIZADOR MULTIMEDIA")
-        print("=" * 60)
+        print("=" * 30)
         print("  1. ASMR")
         print("  2. Musica")
         print("  3. Anime")
         print("  4. BL PDF")
         print("  5. Salir")
-        print("=" * 60)
+        print("=" * 30)
 
         opcion = input("  Seleccioná una opción: ").strip()
 
@@ -40,4 +39,7 @@ def menu_principal():
 
 
 if __name__ == '__main__':
-    menu_principal()
+    try:
+        menu_principal()
+    except KeyboardInterrupt:
+        print("\n\n  ¡Hasta luego! (Ejecución cancelada por el usuario).\n")

@@ -6,6 +6,7 @@ Formato final: 000 - Artista - Título.m4a
 
 import os
 import re
+import unicodedata
 
 try:
     from mutagen.mp4 import MP4
@@ -24,6 +25,7 @@ from utils import (
     clasificar_archivo,
     mostrar_vista_previa,
     pedir_confirmacion,
+    limpiar_pantalla
 )
 
 
@@ -71,13 +73,43 @@ def pedir_dato(nombre_campo: str, nombre_archivo: str) -> str:
         print("  El campo no puede estar vacío.")
 
 
+
+def sanitizar_componente_nombre(valor: str) -> str:
+    """
+    Limpia un componente de nombre de archivo para evitar caracteres inválidos
+    en sistemas de archivos comunes.
+    """
+    valor = unicodedata.normalize('NFKC', valor).strip()
+    valor = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', valor)
+    valor = re.sub(r'\s+', ' ', valor).strip()
+    valor = valor.rstrip('. ')
+    return valor or 'Sin nombre'
 # ---------------------------------------------------------------------------
 # Construcción de nombre final
 # ---------------------------------------------------------------------------
 
 def construir_nombre_final(numero: int, artista: str, titulo: str) -> str:
     """Construye el nombre final con formato '000 - Artista - Título'."""
+    artista = sanitizar_componente_nombre(artista)
+    titulo = sanitizar_componente_nombre(titulo)
     return f"{formatear_numero(numero)} - {artista} - {titulo}"
+
+
+def _renumerar_archivo_existente(nombre: str, numero_nuevo: int) -> str:
+    """
+    Cambia solo el prefijo numérico de un nombre ya organizado.
+    Mantiene intacto el resto del texto del archivo.
+    """
+    nombre_sin_ext, ext = os.path.splitext(nombre)
+    partes = nombre_sin_ext.split(' - ', 1)
+    if len(partes) != 2:
+        return nombre
+
+    resto = partes[1].strip()
+    if not resto:
+        return nombre
+
+    return f"{formatear_numero(numero_nuevo)} - {resto}{ext}"
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +117,7 @@ def construir_nombre_final(numero: int, artista: str, titulo: str) -> str:
 # ---------------------------------------------------------------------------
 
 def opcion_reformatear():
+    limpiar_pantalla()
     print("\n  --- Reformatear nombres ASMR ---\n")
 
     if not verificar_carpeta():
@@ -188,17 +221,17 @@ def _aplicar_renombrado(cambios: list[dict]):
 # ---------------------------------------------------------------------------
 
 def opcion_insertar():
+    limpiar_pantalla()
     print("\n  --- Insertar nuevo ASMR en la lista ---\n")
 
     if not verificar_carpeta():
         return
 
-    todos    = listar_archivos('.m4a')
-    archivos = []
+    todos = listar_archivos('.m4a')
 
     # Separar organizados (con número) de nuevos (sin número)
     organizados = []
-    sin_numero  = []
+    sin_numero = []
 
     for nombre in todos:
         nombre_sin_ext = os.path.splitext(nombre)[0]
@@ -223,7 +256,7 @@ def opcion_insertar():
     for i, nombre in enumerate(sin_numero, 1):
         print(f"    [{i}] {nombre}")
 
-    total_final   = len(organizados) + len(sin_numero)
+    total_final = len(organizados) + len(sin_numero)
     print(f"\n  La lista final tendrá {total_final} elemento(s).")
     print(f"  Posiciones válidas para inserción: 1 a {total_final}")
 
@@ -250,50 +283,39 @@ def opcion_insertar():
     # Leer/pedir metadatos de los archivos nuevos
     meta_nuevos = {}
     for ins in inserciones:
-        ruta    = os.path.join(CARPETA_TRABAJO, ins['nombre'])
-        meta    = leer_metadatos_m4a(ruta)
+        ruta = os.path.join(CARPETA_TRABAJO, ins['nombre'])
+        meta = leer_metadatos_m4a(ruta)
         artista = meta['artista'] or pedir_dato('artista', ins['nombre'])
-        titulo  = meta['titulo']  or pedir_dato('título',  ins['nombre'])
+        titulo = meta['titulo'] or pedir_dato('título', ins['nombre'])
         meta_nuevos[ins['nombre']] = {'artista': artista, 'titulo': titulo}
 
     # Construir lista de cambios para vista previa
     cambios = []
     for entrada in lista_final:
         numero_nuevo = entrada['numero']
-        nombre_orig  = entrada['nombre']
+        nombre_orig = entrada['nombre']
 
         if nombre_orig in meta_nuevos:
-            # Archivo nuevo
+            # Archivo nuevo: sí se construye nombre completo
             m = meta_nuevos[nombre_orig]
             nombre_nuevo = construir_nombre_final(numero_nuevo, m['artista'], m['titulo']) + '.m4a'
+            estado = 'formato_incorrecto'
         else:
-            # Archivo ya organizado — obtener metadatos para reconstruir nombre
-            ruta  = os.path.join(CARPETA_TRABAJO, nombre_orig)
-            meta  = leer_metadatos_m4a(ruta)
-
-            artista = meta['artista']
-            titulo  = meta['titulo']
-
-            # Si los metadatos fallan, intentar extraer del nombre actual
-            if not artista or not titulo:
-                artista, titulo = _extraer_meta_del_nombre(nombre_orig)
-
-            if artista and titulo:
-                nombre_nuevo = construir_nombre_final(numero_nuevo, artista, titulo) + '.m4a'
-            else:
-                # Caso raro: no se puede reconstruir, conservar nombre pero actualizar número
-                nombre_nuevo = nombre_orig  # Se dejará igual, se avisa
+            # Archivo ya organizado: solo cambiar el número del prefijo
+            nombre_nuevo = _renumerar_archivo_existente(nombre_orig, numero_nuevo)
+            if nombre_nuevo == nombre_orig:
                 cambios.append({
                     'original': nombre_orig,
                     'nuevo':    nombre_orig,
                     'estado':   'dudoso',
                 })
                 continue
+            estado = 'formato_incorrecto'
 
         cambios.append({
             'original': nombre_orig,
             'nuevo':    nombre_nuevo,
-            'estado':   'formato_incorrecto',
+            'estado':   estado,
         })
 
     mostrar_vista_previa(cambios)
@@ -308,7 +330,6 @@ def opcion_insertar():
         return
 
     _aplicar_renombrado_seguro(cambios)
-
 
 def _resolver_inserciones(organizados: list[dict], inserciones: list[dict]) -> list[dict]:
     """
@@ -338,19 +359,6 @@ def _resolver_inserciones(organizados: list[dict], inserciones: list[dict]) -> l
         entrada['numero'] = i
 
     return lista
-
-
-def _extraer_meta_del_nombre(nombre: str) -> tuple[str | None, str | None]:
-    """
-    Intenta extraer artista y título de un nombre con formato '000 - Artista - Título.m4a'.
-    Devuelve (artista, titulo) o (None, None).
-    """
-    nombre_sin_ext = os.path.splitext(nombre)[0]
-    partes = nombre_sin_ext.split(' - ', 2)
-    if len(partes) == 3:
-        return partes[1].strip(), partes[2].strip()
-    return None, None
-
 
 def _aplicar_renombrado_seguro(cambios: list[dict]):
     """
@@ -400,13 +408,13 @@ def _aplicar_renombrado_seguro(cambios: list[dict]):
 def menu_asmr():
     while True:
         print()
-        print("=" * 60)
+        print("=" * 30)
         print("  MODULO ASMR")
-        print("=" * 60)
+        print("=" * 30)
         print("  1. Reformatear nombres")
         print("  2. Insertar nuevo ASMR en la lista")
         print("  3. Volver al menú principal")
-        print("=" * 60)
+        print("=" * 30)
 
         opcion = input("  Seleccioná una opción: ").strip()
 
@@ -415,6 +423,7 @@ def menu_asmr():
         elif opcion == '2':
             opcion_insertar()
         elif opcion == '3':
+            limpiar_pantalla()
             break
         else:
             print("\n  Opción no válida. Ingresá 1, 2 o 3.\n")
