@@ -46,7 +46,7 @@ Sistema de organización automática de archivos. Dejás los archivos que quiera
 - 🎵 Música
 - 🎧 ASMR
 - 🍙 Anime
-- 📚 PDFs (BL específicamente, sin juicio)
+- 📚 PDFs (Mangas específicamente)
 
 ---
 
