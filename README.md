@@ -76,5 +76,5 @@ Sistema de organización automática de archivos. Dejás los archivos que quiera
 ## Notas
 
 - Los archivos sensibles (contraseñas, tokens) **nunca** se suben aquí. Obvio.
-- Este repo es personal, así que si algo no tiene sentido para vos, tiene todo el sentido para mí.
+- Este repo es personal, así que si algo no tiene sentido para ti, tiene todo el sentido para mí.
 - Fuentes de anime, listas para Hayase, y soluciones a problemas típicos (KDE Connect, Bluetooth) están aparte en [`docs/notas.md`](docs/notas.md), para no inflar este README con cosas que no son parte del setup en sí.
