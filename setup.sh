@@ -1,10 +1,19 @@
 #!/bin/bash
-
+#
 # ============================================================
 #   setup.sh — Automatización post-instalación CachyOS KDE
 # ============================================================
+#
+# Requiere bash (usa arrays, [[ ]], process substitution).
+# No es POSIX sh a propósito: este script solo corre en CachyOS,
+# donde bash siempre está disponible.
 
+set -Eeuo pipefail
+
+# ─────────────────────────────────────────
 # Colores
+# ─────────────────────────────────────────
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -13,41 +22,69 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
+# ─────────────────────────────────────────
+# Utilidades de salida
+# ─────────────────────────────────────────
+# Nota: se usa printf en vez de echo -e. Los códigos de color van con
+# %b (interpreta los \033 de las variables) y el texto del usuario con
+# %s (nunca se interpreta como formato, aunque contenga backslashes).
+
+print_header() {
+  printf '\n'
+  printf '%b\n' "${BLUE}${BOLD}══════════════════════════════════════${NC}"
+  printf '%b\n' "${BLUE}${BOLD}  $1${NC}"
+  printf '%b\n' "${BLUE}${BOLD}══════════════════════════════════════${NC}"
+  printf '\n'
+}
+
+print_ok()   { printf '  %b✔%b  %s\n' "$GREEN" "$NC" "$1"; }
+print_warn() { printf '  %b⚠%b  %s\n' "$YELLOW" "$NC" "$1"; }
+print_info() { printf '  %b→%b  %s\n' "$CYAN" "$NC" "$1"; }
+print_err()  { printf '  %b✘%b  %s\n' "$RED" "$NC" "$1"; }
+
+pause() {
+  printf '\n'
+  read -rp "  Presiona Enter para continuar..." _
+  printf '\n'
+}
+
+# Ojo: acepta exactamente "s"/"S" para sí, cualquier otra cosa es "no".
+# Es intencional — simple y sin ambigüedad.
+confirmar() {
+  local resp
+  read -rp "  $1 [s/N]: " resp
+  [[ "$resp" =~ ^[sS]$ ]]
+}
+
+# Reporta en qué línea y comando reventó el script (gracias a set -e).
+on_error() {
+  local exit_code=$?
+  printf '\n  %b✘ Error (código %s) en línea %s: %s%b\n\n' \
+    "${RED}${BOLD}" "$exit_code" "$LINENO" "$BASH_COMMAND" "$NC"
+}
+trap on_error ERR
+
+# ─────────────────────────────────────────
 # Rutas base (relativas al repo)
+# ─────────────────────────────────────────
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIGS_DIR="$SCRIPT_DIR/linux/configs"
 FONTS_DIR="$SCRIPT_DIR/linux/fonts"
 
 # ─────────────────────────────────────────
-# Utilidades
+# Logging — guarda toda la sesión en un archivo, sin dejar de
+# mostrarla en pantalla.
 # ─────────────────────────────────────────
 
-print_header() {
-  echo ""
-  echo -e "${BLUE}${BOLD}══════════════════════════════════════${NC}"
-  echo -e "${BLUE}${BOLD}  $1${NC}"
-  echo -e "${BLUE}${BOLD}══════════════════════════════════════${NC}"
-  echo ""
-}
-
-print_ok()   { echo -e "  ${GREEN}✔${NC}  $1"; }
-print_warn() { echo -e "  ${YELLOW}⚠${NC}  $1"; }
-print_info() { echo -e "  ${CYAN}→${NC}  $1"; }
-print_err()  { echo -e "  ${RED}✘${NC}  $1"; }
-
-pause() {
-  echo ""
-  read -rp "  Presiona Enter para continuar..."
-  echo ""
-}
-
-confirmar() {
-  read -rp "  $1 [s/N]: " resp
-  [[ "$resp" =~ ^[sS]$ ]]
-}
+LOG_DIR="$HOME/.local/state/setup-cachyos"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/setup-$(date +%Y%m%d-%H%M%S).log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+print_info "Esta sesión se está guardando en: $LOG_FILE"
 
 # ─────────────────────────────────────────
-# Fases
+# Fase 1 — Paquetes
 # ─────────────────────────────────────────
 
 fase_paquetes() {
@@ -59,18 +96,21 @@ fase_paquetes() {
   print_info "Instalando paquetes desde repositorio oficial..."
   sudo pacman -S --noconfirm --needed \
     discord \
-    vlc \
     telegram-desktop \
     zen-browser-bin \
     libreoffice-still \
     libreoffice-still-es \
     git \
-    alacritty \
     fastfetch \
     yt-dlp \
-    yad \
+    qbittorrent \
+    fuse2 \
+    mkvtoolnix-gui \
+    prismlauncher \
     base-devel \
-    yay
+    yay \
+    flatpak \
+    rsync
 
   print_ok "Paquetes base instalados."
 
@@ -78,141 +118,159 @@ fase_paquetes() {
   yay -S --noconfirm visual-studio-code-bin
   print_ok "VSCode instalado."
 
+  print_info "Configurando el remoto de Flathub..."
+  flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+  print_ok "Flathub configurado."
+
   print_info "Instalando Sober/Roblox (Flatpak)..."
-  flatpak install flathub org.vinegarhq.Sober
+  flatpak install -y flathub org.vinegarhq.Sober
   print_ok "Sober instalado."
 
-  print_warn "Prism Launcher: instalación manual. Recuerda seleccionar Java 17 dentro de la app."
+}
+
+# ─────────────────────────────────────────
+# Fase 2 — Dotfiles y configuraciones
+# ─────────────────────────────────────────
+#
+# copiar_config: copia una carpeta o archivo del repo hacia el sistema.
+#
+#   $1 descripcion  → texto para los mensajes
+#   $2 origen       → ruta dentro del repo
+#   $3 destino      → carpeta destino (no incluye el nombre final)
+#   $4 modo         → file   : copia un solo archivo
+#                     subvol : la carpeta origen se copia completa,
+#                              con su propio nombre, dentro de destino.
+#                              Se sincroniza EXACTO (borra lo que sobre
+#                              en destino/<nombre>). Úsalo para carpetas
+#                              que el repo controla por completo
+#                              (temas, iconos, cursores, plymouth...).
+#                     merge  : el CONTENIDO de origen se mezcla directo
+#                              dentro de destino, sin borrar nada que ya
+#                              esté ahí. Úsalo para configs de apps que
+#                              también escriben su propio estado
+#                              (fastfetch, alacritty, haruna, kdedefaults).
+#   $5 usar_sudo    → "sudo" si la copia requiere privilegios, vacío si no
+
+copiar_config() {
+  local descripcion="$1" origen="$2" destino="$3" modo="$4" usar_sudo="$5"
+  local -a runner=()
+  [ -n "$usar_sudo" ] && runner=(sudo)
+
+  if [ ! -e "$origen" ]; then
+    print_err "No se encontró: $origen"
+    return 1
+  fi
+
+  print_info "Copiando $descripcion..."
+
+  local ok=1
+  case "$modo" in
+    file)
+      "${runner[@]}" mkdir -p "$destino" || ok=0
+      if [ "$ok" = "1" ]; then
+        "${runner[@]}" cp -f "$origen" "$destino/" || ok=0
+      fi
+      ;;
+    subvol)
+      local nombre destino_final
+      nombre="$(basename "$origen")"
+      destino_final="$destino/$nombre"
+      "${runner[@]}" mkdir -p "$destino" || ok=0
+      if [ "$ok" = "1" ]; then
+        if [ "$RSYNC_OK" = "1" ]; then
+          "${runner[@]}" rsync -a --delete "$origen/" "$destino_final/" || ok=0
+        else
+          "${runner[@]}" rm -rf "$destino_final"
+          "${runner[@]}" cp -r "$origen" "$destino/" || ok=0
+        fi
+      fi
+      ;;
+    merge)
+      "${runner[@]}" mkdir -p "$destino" || ok=0
+      if [ "$ok" = "1" ]; then
+        if [ "$RSYNC_OK" = "1" ]; then
+          "${runner[@]}" rsync -a "$origen/" "$destino/" || ok=0
+        else
+          "${runner[@]}" cp -r "$origen/." "$destino/" || ok=0
+        fi
+      fi
+      ;;
+    *)
+      print_err "Modo desconocido '$modo' para $descripcion"
+      return 1
+      ;;
+  esac
+
+  if [ "$ok" = "1" ]; then
+    print_ok "$descripcion copiado."
+  else
+    print_err "Falló la copia de: $descripcion"
+    return 1
+  fi
 }
 
 fase_dotfiles() {
   print_header "Fase 2 — Dotfiles y configuraciones"
-  # ── Temas KDE (primero los archivos, luego la config) ──
 
-  # Aurorae (decoraciones de ventanas)
-  if [ -d "$CONFIGS_DIR/local/Layan" ]; then
-    print_info "Copiando tema de decoraciones Layan..."
-    mkdir -p ~/.local/share/aurorae/themes
-    cp -r "$CONFIGS_DIR/local/Layan/" ~/.local/share/aurorae/themes/
-    print_ok "Decoraciones Layan copiadas."
+  if command -v rsync >/dev/null 2>&1; then
+    RSYNC_OK=1
   else
-    print_err "No se encontró la carpeta aurorae/Layan en $CONFIGS_DIR"
+    RSYNC_OK=0
+    print_warn "rsync no está instalado; se usará 'cp -r' como respaldo (sin limpiar archivos obsoletos)."
+    print_warn "Instálalo con: sudo pacman -S rsync"
   fi
 
-  # Color scheme
-  if [ -f "$CONFIGS_DIR/local/ArchDark.colors" ]; then
-    print_info "Copiando esquema de colores ArchDark..."
-    mkdir -p ~/.local/share/color-schemes
-    cp "$CONFIGS_DIR/local/ArchDark.colors" ~/.local/share/color-schemes/
-    print_ok "Colores ArchDark copiados."
-  else
-    print_err "No se encontró ArchDark.colors en $CONFIGS_DIR"
+  # descripcion|origen|destino|modo|sudo
+  local -a dotfiles=(
+    "Decoraciones de ventanas (Aurorae) Layan|$CONFIGS_DIR/local/Layan|$HOME/.local/share/aurorae/themes|subvol|"
+    "Esquema de colores ArchDark|$CONFIGS_DIR/local/ArchDark.colors|$HOME/.local/share/color-schemes|file|"
+    "Temas de Plasma (desktoptheme)|$CONFIGS_DIR/local/desktoptheme|$HOME/.local/share/plasma|subvol|"
+    "Look and feel (Kuro)|$CONFIGS_DIR/local/a2n.kuro|$HOME/.local/share/plasma/look-and-feel|subvol|"
+    "Pantalla de arranque (pixels)|$CONFIGS_DIR/pixels|/usr/share/plymouth/themes|subvol|sudo"
+    "Iconos Tela|$CONFIGS_DIR/Tela|$HOME/.local/share/icons|subvol|"
+    "Cursores Bibata-Modern-Ice|$CONFIGS_DIR/local/Bibata-Modern-Ice|$HOME/.icons|subvol|"
+    "Tema global (cachyosTG)|$CONFIGS_DIR/local/cachyosTG|$HOME/.local/share/plasma/look-and-feel|subvol|"
+    "Configuración de KDE (kdedefaults)|$CONFIGS_DIR/kdedefaults|$HOME/.config/kdedefaults|merge|"
+    "Fastfetch|$CONFIGS_DIR/fastfetch|$HOME/.config/fastfetch|merge|"
+    "Alacritty|$CONFIGS_DIR/alacritty|$HOME/.config/alacritty|merge|"
+    "Haruna|$CONFIGS_DIR/haruna|$HOME/.config/haruna|merge|"
+    "Widget Clear Clock|$CONFIGS_DIR/org.kde.plasma.clearclock|$HOME/.local/share/plasma/plasmoids|subvol|"
+  )
+
+  local entry descripcion origen destino modo usar_sudo
+  for entry in "${dotfiles[@]}"; do
+    IFS='|' read -r descripcion origen destino modo usar_sudo <<< "$entry"
+    copiar_config "$descripcion" "$origen" "$destino" "$modo" "$usar_sudo" || true
+  done
+
+  # ── Acciones posteriores a la copia ──
+
+  if [ -d "$CONFIGS_DIR/pixels" ]; then
+    print_info "Activando pantalla de arranque (pixels)..."
+    if sudo plymouth-set-default-theme -R pixels; then
+      print_ok "Plymouth configurado con el tema pixels."
+    else
+      print_err "No se pudo activar Plymouth. Hazlo manualmente: sudo plymouth-set-default-theme -R pixels"
+    fi
   fi
 
-  # Plasma desktop theme
-  if [ -d "$CONFIGS_DIR/local/desktoptheme" ]; then
-    print_info "Copiando temas de Plasma (Arch-round, Layan)..."
-    mkdir -p ~/.local/share/plasma/desktoptheme
-    cp -r "$CONFIGS_DIR/local/desktoptheme/" ~/.local/share/plasma/
-    print_ok "Temas de Plasma copiados."
-  else
-    print_err "No se encontró la carpeta desktoptheme en $CONFIGS_DIR"
-  fi
-
-  # Look and feel (splash screen Kuro)
-  if [ -d "$CONFIGS_DIR/local/a2n.kuro/" ]; then
-    print_info "Copiando look and feel (Kuro)..."
-    mkdir -p ~/.local/share/plasma/look-and-feel
-    cp -r "$CONFIGS_DIR/local/a2n.kuro/" ~/.local/share/plasma/look-and-feel/
-    print_ok "Look and feel copiado (Kuro)."
-  else
-    print_err "No se encontró la carpeta a2n.kuro en $CONFIGS_DIR"
-  fi
-
-  # Pantalla de arranque (Pixels)
-  if [ -d "$CONFIGS_DIR/pixels/" ]; then
-    print_info "Copiando pantalla de arranque (pixels)..."
-    sudo cp -r "$CONFIGS_DIR/pixels/" /usr/share/plymouth/themes/
-    print_ok "Pantalla de arranque copiado (pixels)."
-  else
-    print_err "No se encontró la carpeta pixels en $CONFIGS_DIR"
-  fi
-
-  # Iconos Tela Dark
-  if [ -d "$CONFIGS_DIR/Tela" ]; then
-    print_info "Copiando iconos Tela..."
-    mkdir -p ~/.local/share/icons
-    cp -r "$CONFIGS_DIR/Tela/" ~/.local/share/icons/
-    print_ok "Iconos Tela copiados."
-  else
-    print_err "No se encontró la carpeta icons/Tela en $CONFIGS_DIR"
-  fi
-
-  # Cursores Bibata
-  if [ -d "$CONFIGS_DIR/local/Bibata-Modern-Ice" ]; then
-    print_info "Copiando cursores Bibata-Modern-Ice..."
-    mkdir -p ~/.icons
-    cp -r "$CONFIGS_DIR/local/Bibata-Modern-Ice/" ~/.icons/
-    print_ok "Cursores copiados."
-  else
-    print_err "No se encontró la carpeta cursors/Bibata-Modern-Ice en $CONFIGS_DIR"
-  fi
-
-  # Tema global
   if [ -d "$CONFIGS_DIR/local/cachyosTG" ]; then
-    print_info "Copiando tema global..."
-    cp -r "$CONFIGS_DIR/local/cachyosTG/" ~/.local/share/plasma/look-and-feel/
-    print_ok "Tema global copiado."
     print_warn "Ve a: Ajustes del sistema > Aspecto > Tema global y selecciona 'CachyTG' para aplicarlo."
-  else
-    print_err "No se encontró la carpeta cursors/Bibata-Modern-Ice en $CONFIGS_DIR"
   fi
 
-  # kdedefaults (al final, cuando ya están los temas)
   if [ -d "$CONFIGS_DIR/kdedefaults" ]; then
-    print_info "Aplicando configuración de KDE..."
-    mkdir -p ~/.config/kdedefaults
-    cp -r "$CONFIGS_DIR/kdedefaults/." ~/.config/kdedefaults/
-    print_ok "Configuración de KDE aplicada."
     print_warn "Cierra sesión y vuelve a entrar para que KDE aplique todos los temas."
-  else
-    print_err "No se encontró la carpeta kdedefaults en $CONFIGS_DIR"
   fi
 
-  # ── Aplicaciones ──
-
-  # Fastfetch
-  if [ -d "$CONFIGS_DIR/fastfetch" ]; then
-    print_info "Copiando configuración de Fastfetch..."
-    mkdir -p ~/.config/fastfetch
-    cp -r "$CONFIGS_DIR/fastfetch/." ~/.config/fastfetch/
-    print_ok "Fastfetch configurado."
-  else
-    print_err "No se encontró la carpeta fastfetch en $CONFIGS_DIR"
-  fi
-
-  # Alacritty
-  if [ -d "$CONFIGS_DIR/alacritty" ]; then
-    print_info "Copiando configuración de Alacritty..."
-    mkdir -p ~/.config/alacritty
-    cp -r "$CONFIGS_DIR/alacritty/." ~/.config/alacritty/
-    print_ok "Alacritty configurado."
-  else
-    print_err "No se encontró la carpeta alacritty en $CONFIGS_DIR"
-  fi
-
-  # Widget Clear Clock
   if [ -d "$CONFIGS_DIR/org.kde.plasma.clearclock" ]; then
-    print_info "Copiando widget Clear Clock..."
-    mkdir -p ~/.local/share/plasma/plasmoids
-    cp -r "$CONFIGS_DIR/org.kde.plasma.clearclock/" ~/.local/share/plasma/plasmoids/
-    print_ok "Widget copiado."
-    print_warn "Agrega el widget al escritorio, reemplaza su config.qml y luego refresca Plasma:"
+    print_warn "Agrega el widget Clear Clock al escritorio, reemplaza su config.qml y luego refresca Plasma:"
     print_warn "kquitapp6 plasmashell && kstart5 plasmashell"
-  else
-    print_err "No se encontró la carpeta widget en $CONFIGS_DIR"
   fi
 }
+
+# ─────────────────────────────────────────
+# Fase 3 — Fuentes
+# ─────────────────────────────────────────
 
 fase_fuentes() {
   print_header "Fase 3 — Fuentes"
@@ -224,11 +282,11 @@ fase_fuentes() {
   if [ -d "$FONTS_DIR" ] && [ ${#fuentes[@]} -gt 0 ]; then
     print_info "Instalando fuentes..."
     mkdir -p ~/.local/share/fonts
-    
+
     cp "${fuentes[@]}" ~/.local/share/fonts/
-    
-    fc-cache -fv > /dev/null 2>&1
-    
+
+    fc-cache -f > /dev/null 2>&1
+
     print_ok "Fuentes instaladas: ${#fuentes[@]} archivo(s)."
     print_warn "Aplica las fuentes en: Ajustes del sistema > Fuentes (Fredoka Medium 12pt / 10pt)."
   else
@@ -236,8 +294,22 @@ fase_fuentes() {
   fi
 }
 
+# ─────────────────────────────────────────
+# Fase 4 — Subvolumen Game Zone (Btrfs)
+# ─────────────────────────────────────────
+
 fase_gamezone() {
   print_header "Fase 4 — Subvolumen Game Zone (Btrfs)"
+
+  if ! command -v btrfs >/dev/null 2>&1; then
+    print_err "El comando 'btrfs' no está disponible. Esta fase requiere btrfs-progs."
+    return 1
+  fi
+
+  if [ "$(findmnt -no FSTYPE /)" != "btrfs" ]; then
+    print_err "La raíz (/) no está en Btrfs. Esta fase no aplica en este sistema."
+    return 1
+  fi
 
   if [ -d "/games" ]; then
     print_warn "El subvolumen /games ya existe. Saltando."
@@ -251,74 +323,86 @@ fase_gamezone() {
   print_ok "Subvolumen /games creado con NoCoW habilitado."
 }
 
+# ─────────────────────────────────────────
+# Fase 5 — Snapper (Snapshots)
+# ─────────────────────────────────────────
+
 fase_snapper() {
   print_header "Fase 5 — Snapper (Snapshots)"
 
   print_info "Instalando snapper..."
   sudo pacman -S --noconfirm --needed snapper cachyos-snapper-support btrfs-assistant
 
-  print_info "Creando configuración root..."
-  sudo snapper -c root create-config /
+  if sudo snapper list-configs 2>/dev/null | grep -q '^root '; then
+    print_warn "La configuración 'root' de Snapper ya existe. Se omite la creación."
+  else
+    print_info "Creando configuración root..."
+    sudo snapper -c root create-config /
+  fi
 
   print_info "Ajustando límites en /etc/snapper/configs/root..."
-  sudo sed -i 's/^TIMELINE_LIMIT_DAILY=.*/TIMELINE_LIMIT_DAILY="5"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_LIMIT_WEEKLY=.*/TIMELINE_LIMIT_WEEKLY="1"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_LIMIT_MONTHLY=.*/TIMELINE_LIMIT_MONTHLY="0"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_LIMIT_YEARLY=.*/TIMELINE_LIMIT_YEARLY="0"/' /etc/snapper/configs/root
-  sudo sed -i 's/^TIMELINE_LIMIT_HOURLY=.*/TIMELINE_LIMIT_HOURLY="0"/' /etc/snapper/configs/root
-  sudo sed -i 's/^NUMBER_LIMIT=.*/NUMBER_LIMIT="0"/' /etc/snapper/configs/root
+  sudo sed -i \
+    -e 's/^TIMELINE_LIMIT_HOURLY=.*/TIMELINE_LIMIT_HOURLY="0"/' \
+    -e 's/^TIMELINE_LIMIT_DAILY=.*/TIMELINE_LIMIT_DAILY="5"/' \
+    -e 's/^TIMELINE_LIMIT_WEEKLY=.*/TIMELINE_LIMIT_WEEKLY="1"/' \
+    -e 's/^TIMELINE_LIMIT_MONTHLY=.*/TIMELINE_LIMIT_MONTHLY="0"/' \
+    -e 's/^TIMELINE_LIMIT_YEARLY=.*/TIMELINE_LIMIT_YEARLY="0"/' \
+    -e 's/^NUMBER_LIMIT=.*/NUMBER_LIMIT="0"/' \
+    -e 's/^NUMBER_LIMIT_IMPORTANT=.*/NUMBER_LIMIT_IMPORTANT="15"/' \
+    /etc/snapper/configs/root
 
   print_ok "Snapper configurado."
   print_warn "Cuando el sistema esté completamente listo, crea la snapshot maestra:"
   print_warn "snapper -c root create --description \"Sistema base configurado\""
 }
 
+# ─────────────────────────────────────────
+# Resumen y verificaciones
+# ─────────────────────────────────────────
+
 resumen_manual() {
   print_header "Pasos manuales pendientes"
 
-  echo -e "  Los siguientes pasos ${BOLD}no se pueden automatizar${NC} y deben hacerse a mano:\n"
+  printf '  Los siguientes pasos %bno se pueden automatizar%b y deben hacerse a mano:\n\n' "$BOLD" "$NC"
 
-  echo -e "  ${YELLOW}KDE — Sistema${NC}"
+  printf '  %bKDE — Sistema%b\n' "$YELLOW" "$NC"
   echo "    • SDDM: cambiar fondo de pantalla"
   echo "    • Efectos del escritorio: ventanas tambaleantes en 1"
   echo "    • Luz nocturna: activar"
   echo "    • Atajo Meta+T para Alacritty"
-  echo ""
-  echo -e "  ${YELLOW}Apps manuales${NC}"
-  echo "    • Prism Launcher: instalar y seleccionar Java 17"
+  printf '\n'
+  printf '  %bApps manuales%b\n' "$YELLOW" "$NC"
+  echo "    • Prism Launcher: Seleccionar Java 17"
+  echo "    • Descargar SmartVideo para el fondo de pantalla"
   echo '    • Snapshot maestra: sudo snapper -c root create --description "Sistema base configurado"'
-  echo ""
+  printf '\n'
   echo "  Reinicia el sistema después de completar estos pasos para que todo quede aplicado correctamente."
-  echo ""
+  printf '\n'
 
   # ── Verificaciones automáticas ──
   print_header "Verificaciones"
 
-  # Subvolumen Game Zone
-  echo -e "  ${CYAN}→${NC}  Subvolumen /games:"
-  sudo btrfs subvolume list /
+  printf '  %b→%b  Subvolumen /games:\n' "$CYAN" "$NC"
+  sudo btrfs subvolume list / || true
   if sudo btrfs subvolume list / | grep -q "games"; then
     print_ok "Subvolumen /games encontrado."
   else
     print_err "Subvolumen /games NO encontrado."
   fi
 
-  # Subvolumen
-  echo -e "  ${CYAN}→${NC}  Atributo NoCoW en /games:"
+  printf '  %b→%b  Atributo NoCoW en /games:\n' "$CYAN" "$NC"
   lsattr -d /games 2>/dev/null || print_err "No se pudo leer /games"
 
-  # Snapper configs
-  echo ""
-  echo -e "  ${CYAN}→${NC}  Configuraciones de Snapper (debe aparecer solo 'root'):"
-  sudo snapper list-configs 2>/dev/null
+  printf '\n'
+  printf '  %b→%b  Configuraciones de Snapper (debe aparecer solo '"'"'root'"'"'):\n' "$CYAN" "$NC"
+  sudo snapper list-configs 2>/dev/null || true
 
-  # Límites con valores esperados al lado
-  echo ""
-  echo -e "  ${CYAN}→${NC}  Límites de Snapper (valores esperados entre paréntesis):"
+  printf '\n'
+  printf '  %b→%b  Límites de Snapper (valores esperados entre paréntesis):\n' "$CYAN" "$NC"
   sudo grep -E 'TIMELINE_LIMIT|NUMBER_LIMIT' /etc/snapper/configs/root | while read -r line; do
     key=$(echo "$line" | cut -d= -f1)
     value=$(echo "$line" | cut -d= -f2)
-    case $key in
+    case "$key" in
       TIMELINE_LIMIT_DAILY)   expected='"5"'  ;;
       TIMELINE_LIMIT_WEEKLY)  expected='"1"'  ;;
       TIMELINE_LIMIT_HOURLY)  expected='"0"'  ;;
@@ -329,19 +413,19 @@ resumen_manual() {
       *) expected="?" ;;
     esac
     if [ "$value" = "$expected" ]; then
-      echo -e "    ${GREEN}✔${NC}  $key=$value (esperado: $expected)"
+      printf '    %b✔%b  %s=%s (esperado: %s)\n' "$GREEN" "$NC" "$key" "$value" "$expected"
     else
-      echo -e "    ${RED}✘${NC}  $key=$value (esperado: $expected)"
+      printf '    %b✘%b  %s=%s (esperado: %s)\n' "$RED" "$NC" "$key" "$value" "$expected"
     fi
-  done
+  done || true
 }
 
 pasos_inicio() {
   print_header "Pasos manuales de inicio"
 
-  echo -e "  Los siguientes pasos ${BOLD}son de inicio${NC} y deben hacerse a mano:\n"
+  printf '  Los siguientes pasos %bson de inicio%b y deben hacerse a mano:\n\n' "$BOLD" "$NC"
 
-  echo -e "  ${YELLOW}CachyOS Hello${NC}"
+  printf '  %bCachyOS Hello%b\n' "$YELLOW" "$NC"
   echo "    • Ananicy Cpp: Habilitado"
   echo "    • Cachy Update: Habilitado"
   echo "    • Systemd-oomd: Deshabilitado"
@@ -349,22 +433,21 @@ pasos_inicio() {
   echo "    • Bluetooth: Habilitado"
   echo "    • Evaluar mirrors (Colombia)"
   echo "    • Instalar paquetes de gaming (Wine, Proton, drivers)"
-  echo ""
+  printf '\n'
 
-  # ── Comandos importantes ──
   print_header "Comandos importantes"
-  
-  echo -e "  Los siguientes comandos ${BOLD}son de referencia${NC} a futuro:\n"
+
+  printf '  Los siguientes comandos %bson de referencia%b a futuro:\n\n' "$BOLD" "$NC"
   echo "    • Listar snapshots:"
   echo "      sudo snapper -c root list"
-  echo ""
+  printf '\n'
   echo "    • Borrar snapshots:"
   echo "      sudo snapper -c root delete <número>"
-  echo ""
+  printf '\n'
   echo "    • Ver espacio de las snapshots:"
   echo "      sudo bash -c 'btrfs filesystem du -s /.snapshots/*/snapshot'"
-  echo ""
-  echo -e "  ${YELLOW}⚠${NC}  El campo 'Total' incluye espacio compartido entre snapshots y parece mayor de lo real."
+  printf '\n'
+  printf '  %b⚠%b  El campo '"'"'Total'"'"' incluye espacio compartido entre snapshots y parece mayor de lo real.\n' "$YELLOW" "$NC"
   echo "      Ignorar 'Total'. El espacio real es el 'Set shared' (compartido entre todas)"
   echo "      más el 'Exclusive' de cada snapshot (lo que ocupa de forma única)."
 }
@@ -374,49 +457,56 @@ pasos_inicio() {
 # ─────────────────────────────────────────
 
 menu() {
-  clear
-  pasos_inicio
-  pause
+  while true; do
+    clear
+    pasos_inicio
+    pause
 
-  clear
-  echo ""
-  echo -e "${BLUE}${BOLD}  ╔══════════════════════════════════════╗${NC}"
-  echo -e "${BLUE}${BOLD}  ║   Setup CachyOS KDE — Post-Install  ║${NC}"
-  echo -e "${BLUE}${BOLD}  ╚══════════════════════════════════════╝${NC}"
-  echo ""
-  echo -e "  ${BOLD}1.${NC} Fase 1 — Paquetes"
-  echo -e "  ${BOLD}2.${NC} Fase 2 — Dotfiles y configuraciones"
-  echo -e "  ${BOLD}3.${NC} Fase 3 — Fuentes"
-  echo -e "  ${BOLD}4.${NC} Fase 4 — Subvolumen Game Zone"
-  echo -e "  ${BOLD}5.${NC} Fase 5 — Snapper"
-  echo -e "  ${BOLD}6.${NC} Correr todo de una"
-  echo -e "  ${BOLD}7.${NC} Ver pasos manuales pendientes"
-  echo -e "  ${BOLD}0.${NC} Salir"
-  echo ""
-  read -rp "  Elige una opción: " opcion
+    clear
+    printf '\n'
+    printf '%b\n' "${BLUE}${BOLD}  ╔══════════════════════════════════════╗${NC}"
+    printf '%b\n' "${BLUE}${BOLD}  ║   Setup CachyOS KDE — Post-Install  ║${NC}"
+    printf '%b\n' "${BLUE}${BOLD}  ╚══════════════════════════════════════╝${NC}"
+    printf '\n'
+    printf '  %b1.%b Fase 1 — Paquetes\n' "$BOLD" "$NC"
+    printf '  %b2.%b Fase 2 — Dotfiles y configuraciones\n' "$BOLD" "$NC"
+    printf '  %b3.%b Fase 3 — Fuentes\n' "$BOLD" "$NC"
+    printf '  %b4.%b Fase 4 — Subvolumen Game Zone\n' "$BOLD" "$NC"
+    printf '  %b5.%b Fase 5 — Snapper\n' "$BOLD" "$NC"
+    printf '  %b6.%b Correr todo de una\n' "$BOLD" "$NC"
+    printf '  %b7.%b Ver pasos manuales pendientes\n' "$BOLD" "$NC"
+    printf '  %b0.%b Salir\n' "$BOLD" "$NC"
+    printf '\n'
 
-  case $opcion in
-    1) fase_paquetes; pause ;;
-    2) fase_dotfiles; pause ;;
-    3) fase_fuentes; pause ;;
-    4) fase_gamezone; pause ;;
-    5) fase_snapper; pause ;;
-    6) resumen_manual; pause ;;
-    7)
-      if confirmar "¿Correr todas las fases?"; then
-        fase_paquetes; pause
-        fase_dotfiles; pause
-        fase_fuentes; pause
-        fase_gamezone; pause
-        fase_snapper; pause
-        resumen_manual
-      fi
-      ;;
-    0) echo ""; echo -e "  ${GREEN}¡Hasta luego!${NC}"; echo ""; exit 0 ;;
-    *) print_err "Opción no válida." ;;
-  esac
+    if ! read -rp "  Elige una opción: " opcion; then
+      printf '\n'
+      print_warn "Entrada finalizada (EOF). Saliendo."
+      exit 0
+    fi
 
-  menu
+    case "$opcion" in
+      1) fase_paquetes; pause ;;
+      2) fase_dotfiles; pause ;;
+      3) fase_fuentes; pause ;;
+      4) fase_gamezone; pause ;;
+      5) fase_snapper; pause ;;
+      6)
+        if confirmar "¿Correr todas las fases?"; then
+          fase_paquetes; pause
+          fase_dotfiles; pause
+          fase_fuentes; pause
+          fase_gamezone; pause
+          fase_snapper; pause
+          resumen_manual
+        else
+          print_info "Cancelado."
+        fi
+        ;;
+      7) resumen_manual; pause ;;
+      0) printf '\n'; printf '  %b¡Hasta luego!%b\n\n' "$GREEN" "$NC"; exit 0 ;;
+      *) print_err "Opción no válida." ;;
+    esac
+  done
 }
 
 # ─────────────────────────────────────────
@@ -425,6 +515,11 @@ menu() {
 
 if [ "$EUID" -eq 0 ]; then
   print_err "No corras el script como root directamente. Usa tu usuario normal."
+  exit 1
+fi
+
+if ! sudo -v; then
+  print_err "No se pudo obtener privilegios de sudo."
   exit 1
 fi
 

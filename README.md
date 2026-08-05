@@ -17,7 +17,30 @@
 | `gaming/mc_skins/` | Skins de Minecraft |
 | `assets/wallpapers/` | Fondos de pantalla |
 | `assets/icons/` | Iconos |
-| `docs/` | Guía de reinstalación de CachyOS en PDF |
+| `docs/` | Guía completa de reinstalación (PDF) + notas y extras |
+
+---
+
+## Fase 0 — Instalación de CachyOS
+
+Antes de correr `setup.sh` necesitás el sistema ya instalado así. Es clave para que `systemd-boot` arranque bien — no te lo saltes ni cambies el orden.
+
+**Tabla de particiones:** GPT
+
+**Partición EFI**
+- Tamaño: 2048 MiB
+- Sistema de archivos: FAT32
+- Punto de montaje: `/boot`
+- Flag: `boot`
+
+**Partición raíz**
+- Tamaño: resto del disco
+- Sistema de archivos: Btrfs
+- Punto de montaje: `/`
+
+**Contraseñas:** una distinta para el usuario y otra para root. No las repitas.
+
+> 📄 La guía completa (post-instalación, temas de KDE, snapshots, etc.) está en `docs/`.
 
 ---
 
@@ -30,7 +53,7 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-El script tiene un menú interactivo: podés instalar todo de una o ir eligiendo qué configurar. Sin magia negra, con opciones.
+El script tiene un menú interactivo: puedes instalar todo de una o ir eligiendo qué configurar.
 
 > 📄 Ver `docs/` para la guía completa de reinstalación.
 
@@ -54,3 +77,4 @@ Sistema de organización automática de archivos. Dejás los archivos que quiera
 
 - Los archivos sensibles (contraseñas, tokens) **nunca** se suben aquí. Obvio.
 - Este repo es personal, así que si algo no tiene sentido para vos, tiene todo el sentido para mí.
+- Fuentes de anime, listas para Hayase, y soluciones a problemas típicos (KDE Connect, Bluetooth) están aparte en [`docs/notas.md`](docs/notas.md), para no inflar este README con cosas que no son parte del setup en sí.
