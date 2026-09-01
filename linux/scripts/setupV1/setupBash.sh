@@ -1,11 +1,18 @@
 #!/bin/bash
 
 # ─────────────────────────────────────────
+# Setup CachyOS KDE — Versión 100% Bash
+# Respaldo sin dependencia de Ansible.
+# Traducción directa de ansible/playbook.yml
+# ─────────────────────────────────────────
+
+# ─────────────────────────────────────────
 # Configuración
 # ─────────────────────────────────────────
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-PLAYBOOK="$SCRIPT_DIR/ansible/playbook.yml"
+CONFIG_BK_DIR="$HOME/BackupLinux/linux/configs"
+LOCAL_DIR="$HOME/.local/share"
+CONFIG_DIR="$HOME/.config"
 
 # ─────────────────────────────────────────
 # Colores
@@ -100,78 +107,267 @@ seleccionar_perfil() {
 }
 
 # ─────────────────────────────────────────
-# Verificar dependencias de Ansible
+# Fase 1 — Paquetes
 # ─────────────────────────────────────────
 
-check_ansible() {
-    if command -v ansible >/dev/null 2>&1 &&
-       command -v ansible-playbook >/dev/null 2>&1; then
-        print_ok "Ansible ya está instalado."
+PAQUETES_BASE=(
+    discord telegram-desktop zen-browser-bin libreoffice-still libreoffice-still-es
+    git fastfetch yt-dlp qbittorrent fuse2 mkvtoolnix-gui prismlauncher
+    base-devel yay flatpak python-mutagen tk rsync snapper
+    cachyos-snapper-support btrfs-assistant
+)
+
+instalar_paquetes_red() {
+    print_info "Instalando paquetes de red (tailscale, ufw)..."
+
+    if sudo pacman -S --needed --noconfirm tailscale ufw; then
+        print_ok "Paquetes de red instalados."
+        return 0
     else
-        print_warn "Ansible no está instalado."
+        print_err "Falló la instalación de paquetes de red."
+        return 1
+    fi
+}
 
-        if ! confirmar "¿Deseas instalar Ansible y ansible-lint?"; then
-            print_err "Ansible es necesario para continuar."
-            exit 1
-        fi
+instalar_paquetes() {
+    print_header "Fase 1 — Paquetes"
 
-        printf '\n'
-        print_info "Instalando Ansible y ansible-lint..."
+    print_info "Instalando paquetes principales..."
 
-        if sudo pacman -S --needed --noconfirm ansible ansible-lint; then
-            print_ok "Ansible se instaló correctamente."
+    if ! sudo pacman -S --needed --noconfirm "${PAQUETES_BASE[@]}"; then
+        print_err "Falló la instalación de paquetes principales."
+        return 1
+    fi
+    print_ok "Paquetes principales instalados."
+
+    if ! instalar_paquetes_red; then
+        return 1
+    fi
+
+    print_info "Instalando Visual Studio Code (AUR) con yay..."
+    # OJO: yay NO se corre con sudo, el mismo escala privilegios cuando
+    # necesita instalar el paquete compilado. Si yay no está en PATH
+    # todavía, corre esta fase de nuevo después de que termine.
+    if yay -S --needed --noconfirm visual-studio-code-bin; then
+        print_ok "VS Code instalado."
+    else
+        print_err "Falló la instalación de VS Code."
+        return 1
+    fi
+
+    print_info "Agregando el remote de Flathub..."
+    if flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo; then
+        print_ok "Remote de Flathub agregado."
+    else
+        print_err "Falló al agregar el remote de Flathub."
+        return 1
+    fi
+
+    print_info "Instalando Sober (Flatpak)..."
+    if flatpak install -y --noninteractive flathub org.vinegarhq.Sober; then
+        print_ok "Sober instalado."
+    else
+        print_err "Falló la instalación de Sober."
+        return 1
+    fi
+
+    print_ok "Fase 1 completada."
+}
+
+# ─────────────────────────────────────────
+# Fase 2 — Dotfiles
+# ─────────────────────────────────────────
+
+# Formato: origen|destino|delete(0/1)|sudo(0/1)
+# Mismos orígenes, destinos y flags que las listas del playbook.
+DOTFILES_COMUNES=(
+    "$CONFIG_BK_DIR/fonts/|$LOCAL_DIR/fonts/|0|0"
+    "$CONFIG_BK_DIR/pixels|/usr/share/plymouth/themes/|1|1"
+    "$CONFIG_BK_DIR/local/Bibata-Modern-Ice|$HOME/.icons/|1|0"
+    "$CONFIG_BK_DIR/fastfetch/|$CONFIG_DIR/fastfetch/|0|0"
+    "$CONFIG_BK_DIR/alacritty/|$CONFIG_DIR/alacritty/|0|0"
+    "$CONFIG_BK_DIR/haruna/|$CONFIG_DIR/haruna/|0|0"
+)
+
+DOTFILES_PLASMA=(
+    "$CONFIG_BK_DIR/local/Layan|$LOCAL_DIR/aurorae/themes/|1|0"
+    "$CONFIG_BK_DIR/local/desktoptheme|$LOCAL_DIR/plasma/|1|0"
+    "$CONFIG_BK_DIR/local/a2n.kuro|$LOCAL_DIR/plasma/look-and-feel/|0|0"
+    "$CONFIG_BK_DIR/Tela|$LOCAL_DIR/icons/|1|0"
+    "$CONFIG_BK_DIR/local/org.kde.plasma.clearclock|$LOCAL_DIR/plasma/plasmoids/|1|0"
+    "$CONFIG_BK_DIR/local/cachyosTG|$LOCAL_DIR/plasma/look-and-feel/|0|0"
+    "$CONFIG_BK_DIR/kdedefaults/|$CONFIG_DIR/kdedefaults/|0|0"
+)
+
+# Reservado para futuros dotfiles de Niri + Noctalia.
+DOTFILES_NIRI=()
+
+copiar_dotfiles() {
+    print_header "Fase 2 — Dotfiles y configuraciones"
+
+    local entrada origen destino delete usa_sudo
+    local mkdir_cmd rsync_flags rsync_cmd fallo=0
+    local dotfiles=("${DOTFILES_COMUNES[@]}")
+
+    case "$PROFILE" in
+        plasma)
+            dotfiles+=("${DOTFILES_PLASMA[@]}")
+            ;;
+        niri)
+            dotfiles+=("${DOTFILES_NIRI[@]}")
+            ;;
+        *)
+            print_err "PROFILE inválido: ${PROFILE:-sin definir}"
+            return 1
+            ;;
+    esac
+
+    for entrada in "${dotfiles[@]}"; do
+        IFS='|' read -r origen destino delete usa_sudo <<< "$entrada"
+
+        rsync_flags=(-a)
+        [ "$delete" = "1" ] && rsync_flags+=(--delete)
+
+        if [ "$usa_sudo" = "1" ]; then
+            mkdir_cmd=(sudo mkdir -p "$destino")
+            rsync_cmd=(sudo rsync "${rsync_flags[@]}" "$origen" "$destino")
         else
-            print_err "No se pudo instalar Ansible."
-            exit 1
+            mkdir_cmd=(mkdir -p "$destino")
+            rsync_cmd=(rsync "${rsync_flags[@]}" "$origen" "$destino")
+        fi
+
+        print_info "Copiando $(basename "$origen") -> $destino"
+
+        if "${mkdir_cmd[@]}" && "${rsync_cmd[@]}"; then
+            print_ok "Copiado: $(basename "$origen")"
+        else
+            print_err "Falló copiando: $(basename "$origen")"
+            fallo=1
+        fi
+    done
+
+    print_info "Refrescando cache de fuentes..."
+    fc-cache -f >/dev/null 2>&1 && print_ok "Cache de fuentes actualizado."
+
+    if [ "$PROFILE" = "plasma" ]; then
+        print_warn "Aplica las fuentes en: Ajustes del sistema > Fuentes (Fredoka Medium 12pt / 10pt)."
+        print_warn "Ve a: Ajustes del sistema > Aspecto > Tema global y selecciona 'CachyTG' para aplicarlo."
+        print_warn "Cierra sesión y vuelve a entrar para que KDE aplique todos los temas."
+        print_warn "Agrega el widget Clear Clock al escritorio, reemplaza su config.qml y refresca Plasma con: kquitapp6 plasmashell && kstart5 plasmashell"
+    fi
+
+    if [ "$fallo" -eq 0 ]; then
+        print_ok "Fase 2 completada."
+    else
+        print_warn "Fase 2 terminó con algunos errores, revisa arriba."
+        return 1
+    fi
+}
+
+# ─────────────────────────────────────────
+# Fase 3 — Game Zone
+# ─────────────────────────────────────────
+
+configurar_gamezone() {
+    print_header "Fase 3 — Subvolumen Game Zone"
+
+    if [ -e /games ]; then
+        print_ok "El subvolumen /games ya existe."
+    else
+        print_info "Creando subvolumen /games..."
+        if sudo btrfs subvolume create /games; then
+            print_ok "Subvolumen /games creado."
+        else
+            print_err "Falló creando el subvolumen /games."
+            return 1
         fi
     fi
-}
 
-check_ansible_collection() {
-    if ansible-galaxy collection list community.general >/dev/null 2>&1; then
-        print_ok "La colección community.general ya está instalada."
-        return 0
-    fi
+    local attrs
+    attrs="$(lsattr -d /games 2>/dev/null | awk '{print $1}')"
 
-    print_info "Instalando la colección Ansible community.general..."
-
-    if ansible-galaxy collection install community.general; then
-        print_ok "community.general se instaló correctamente."
+    if [[ "$attrs" == *C* ]]; then
+        print_ok "NoCoW ya está activo en /games."
     else
-        print_err "No se pudo instalar la colección community.general."
-        exit 1
-    fi
-}
-
-# ─────────────────────────────────────────
-# Ejecutar Ansible
-# ─────────────────────────────────────────
-
-run_playbook() {
-    local tags="$1"
-
-    printf '\n'
-
-    if ansible-playbook "$PLAYBOOK" --tags "$tags" --extra-vars "PROFILE=$PROFILE"; then
-        print_ok "Ansible terminó correctamente."
-        return 0
+        print_info "Activando NoCoW (chattr +C) en /games..."
+        if sudo chattr +C /games; then
+            print_ok "NoCoW activado."
+        else
+            print_err "Falló activando NoCoW."
+            return 1
+        fi
     fi
 
-    print_err "Ansible encontró un error."
-
-    if [ -f "$SCRIPT_DIR/setupBash.sh" ]; then
-        print_warn "Abriendo el respaldo Bash con el perfil: $PROFILE"
-        PROFILE="$PROFILE" bash "$SCRIPT_DIR/setupBash.sh"
+    print_info "Asignando propiedad de /games a $USER..."
+    if sudo chown "$USER":"$USER" /games; then
+        print_ok "Propiedad asignada."
     else
-        print_warn "No se encontró un respaldo Bash ejecutable."
+        print_err "Falló asignando propiedad."
+        return 1
     fi
 
-    return 1
+    print_ok "Fase 3 completada."
 }
 
 # ─────────────────────────────────────────
-# Configuración de Tailscale
+# Fase 4 — Snapper
 # ─────────────────────────────────────────
+
+# Mismos pares clave=valor que la var "snapper_limits" del playbook
+SNAPPER_LIMITS=(
+    "TIMELINE_LIMIT_HOURLY=0"
+    "TIMELINE_LIMIT_DAILY=5"
+    "TIMELINE_LIMIT_WEEKLY=1"
+    "TIMELINE_LIMIT_MONTHLY=0"
+    "TIMELINE_LIMIT_YEARLY=0"
+    "NUMBER_LIMIT=0"
+    "NUMBER_LIMIT_IMPORTANT=15"
+)
+
+configurar_snapper() {
+    print_header "Fase 4 — Snapper"
+
+    if [ -f /etc/snapper/configs/root ]; then
+        print_ok "La configuración root de Snapper ya existe."
+    else
+        print_info "Creando configuración root de Snapper..."
+        if sudo snapper -c root create-config /; then
+            print_ok "Configuración root creada."
+        else
+            print_err "Falló creando la configuración de Snapper."
+            return 1
+        fi
+    fi
+
+    local par clave valor
+    for par in "${SNAPPER_LIMITS[@]}"; do
+        clave="${par%%=*}"
+        valor="${par#*=}"
+
+        if sudo grep -q "^${clave}=" /etc/snapper/configs/root 2>/dev/null; then
+            sudo sed -i "s/^${clave}=.*/${clave}=\"${valor}\"/" /etc/snapper/configs/root
+        else
+            echo "${clave}=\"${valor}\"" | sudo tee -a /etc/snapper/configs/root >/dev/null
+        fi
+    done
+
+    print_ok "Límites de Snapper configurados."
+    print_warn "Cuando el sistema esté listo, ejecuta: sudo snapper -c root create --description 'Sistema base configurado' para crear un snapshot inicial."
+    print_ok "Fase 4 completada."
+}
+
+# ─────────────────────────────────────────
+# Fase 5 — Red y Firewall
+# ─────────────────────────────────────────
+
+# Formato: puerto|proto|interface (interface vacío = sin restringir)
+FIREWALL_RULES=(
+    "1714:1764|udp|"
+    "1714:1764|tcp|"
+    "8080|tcp|tailscale0"
+    "7884|udp|tailscale0"
+    "7889|tcp|tailscale0"
+)
 
 setup_tailscale() {
     print_header "Configuración de Tailscale"
@@ -191,9 +387,7 @@ setup_tailscale() {
         return 1
     fi
 
-    # Comprobar si el equipo ya tiene una sesión activa.
     local tailscale_ip
-
     tailscale_ip="$(sudo tailscale ip -4 2>/dev/null | head -n 1)"
 
     if [ -n "$tailscale_ip" ]; then
@@ -225,25 +419,53 @@ setup_tailscale() {
     fi
 }
 
-# ─────────────────────────────────────────
-# Configurar red y firewall
-# ─────────────────────────────────────────
+configurar_firewall() {
+    print_header "Reglas de firewall"
+
+    local regla puerto proto interface cmd fallo=0
+
+    for regla in "${FIREWALL_RULES[@]}"; do
+        IFS='|' read -r puerto proto interface <<< "$regla"
+
+        if [ -n "$interface" ]; then
+            cmd=(sudo ufw allow in on "$interface" to any port "$puerto" proto "$proto")
+            print_info "Permitiendo ${proto}/${puerto} vía ${interface}..."
+        else
+            cmd=(sudo ufw allow in to any port "$puerto" proto "$proto")
+            print_info "Permitiendo ${proto}/${puerto}..."
+        fi
+
+        if "${cmd[@]}"; then
+            print_ok "Regla aplicada: ${proto}/${puerto}"
+        else
+            print_err "Falló la regla: ${proto}/${puerto}"
+            fallo=1
+        fi
+    done
+
+    print_info "Habilitando UFW..."
+    if sudo ufw --force enable; then
+        print_ok "UFW habilitado."
+    else
+        print_err "Falló habilitando UFW."
+        fallo=1
+    fi
+
+    [ "$fallo" -eq 0 ]
+}
 
 setup_network() {
     print_header "Configuración de red y firewall"
 
-    # Primero instalamos Tailscale y UFW.
-    if ! run_playbook "network_packages"; then
+    if ! instalar_paquetes_red; then
         return 1
     fi
 
-    # Después levantamos Tailscale, para que tailscale0 exista.
     if ! setup_tailscale; then
         return 1
     fi
 
-    # Finalmente creamos las reglas de UFW.
-    if ! run_playbook "firewall"; then
+    if ! configurar_firewall; then
         return 1
     fi
 
@@ -275,7 +497,6 @@ resumen_manual() {
     echo "  Reinicia el sistema después de completar estos pasos para que todo quede aplicado correctamente."
     printf '\n'
 
-    # ── Verificaciones automáticas ──
     print_header "Verificaciones"
 
     printf '  %b→%b  Subvolumen /games:\n' "$CYAN" "$NC"
@@ -392,45 +613,37 @@ pasos_inicio() {
 run_all() {
     print_header "Ejecutando todas las fases"
 
-    # Fase 1: paquetes
     print_info "Ejecutando Fase 1 — Paquetes..."
-
-    if ! run_playbook "paquetes"; then
+    if ! instalar_paquetes; then
         print_err "La instalación de paquetes falló."
         return 1
     fi
 
-    # Red: primero Tailscale, luego firewall.
     print_info "Configurando Tailscale y firewall..."
-
     if ! setup_tailscale; then
         print_err "La configuración de Tailscale falló."
         return 1
     fi
 
-    if ! run_playbook "firewall"; then
+    if ! configurar_firewall; then
         print_err "La configuración del firewall falló."
         return 1
     fi
 
-    # Resto de fases.
     print_info "Ejecutando Fase 2 — Dotfiles..."
-
-    if ! run_playbook "dotfiles"; then
+    if ! copiar_dotfiles; then
         print_err "La Fase 2 falló."
         return 1
     fi
 
     print_info "Ejecutando Fase 3 — Game Zone..."
-
-    if ! run_playbook "gamezone"; then
+    if ! configurar_gamezone; then
         print_err "La Fase 3 falló."
         return 1
     fi
 
     print_info "Ejecutando Fase 4 — Snapper..."
-
-    if ! run_playbook "snapper"; then
+    if ! configurar_snapper; then
         print_err "La Fase 4 falló."
         return 1
     fi
@@ -448,7 +661,7 @@ menu() {
         clear
         printf '\n'
         printf '%b\n' "${BLUE}${BOLD}  ╔══════════════════════════════════════════════╗${NC}"
-        printf '%b\n' "${BLUE}${BOLD}  ║       Setup CachyOS KDE — Post-Install     ║${NC}"
+        printf '%b\n' "${BLUE}${BOLD}  ║   Setup CachyOS KDE — Bash (sin Ansible)   ║${NC}"
         printf '%b\n' "${BLUE}${BOLD}  ╚══════════════════════════════════════════════╝${NC}"
         printf '\n'
 
@@ -471,22 +684,22 @@ menu() {
         case "$opcion" in
 
             1)
-                run_playbook "paquetes"
+                instalar_paquetes
                 pause
                 ;;
 
             2)
-                run_playbook "dotfiles"
+                copiar_dotfiles
                 pause
                 ;;
 
             3)
-                run_playbook "gamezone"
+                configurar_gamezone
                 pause
                 ;;
 
             4)
-                run_playbook "snapper"
+                configurar_snapper
                 pause
                 ;;
 
@@ -537,15 +750,6 @@ if ! sudo -v; then
     print_err "No se pudo obtener privilegios de sudo."
     exit 1
 fi
-
-if [ ! -f "$PLAYBOOK" ]; then
-    print_err "No se encontró el playbook:"
-    echo "    $PLAYBOOK"
-    exit 1
-fi
-
-check_ansible
-check_ansible_collection
 
 seleccionar_perfil
 menu

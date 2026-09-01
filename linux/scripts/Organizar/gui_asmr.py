@@ -273,14 +273,13 @@ class AsmrFrame(ttk.Frame):
             barra.columnconfigure(i, weight=0)
         barra.columnconfigure(11, weight=1)
 
-        ttk.Button(barra, text="Agregar", style="Toolbar.TButton", command=self.agregar).grid(row=0, column=0, padx=(0, 6))
-        ttk.Button(barra, text="Eliminar", style="Toolbar.TButton", command=self.eliminar_seleccion).grid(row=0, column=1, padx=6)
-        ttk.Separator(barra, orient="vertical").grid(row=0, column=2, sticky="ns", padx=8)
-        ttk.Button(barra, text="Subir", style="Toolbar.TButton", command=lambda: self.mover(-1)).grid(row=0, column=3, padx=6)
-        ttk.Button(barra, text="Bajar", style="Toolbar.TButton", command=lambda: self.mover(1)).grid(row=0, column=4, padx=6)
-        ttk.Button(barra, text="Aplicar orden", style="Toolbar.TButton", command=self.aplicar_orden).grid(row=0, column=5, padx=6)
-        ttk.Separator(barra, orient="vertical").grid(row=0, column=6, sticky="ns", padx=8)
-        ttk.Button(barra, text="Reformatear nombres", style="Toolbar.TButton", command=self.reformatear_nombres).grid(row=0, column=7, padx=6)
+        ttk.Button(barra, text="Ordenar ASMR", style="Toolbar.TButton", command=self.ordenar_asmr).grid(row=0, column=0, padx=(0, 6))
+        ttk.Separator(barra, orient="vertical").grid(row=0, column=1, sticky="ns", padx=8)
+        ttk.Button(barra, text="Subir", style="Toolbar.TButton", command=lambda: self.mover(-1)).grid(row=0, column=2, padx=6)
+        ttk.Button(barra, text="Bajar", style="Toolbar.TButton", command=lambda: self.mover(1)).grid(row=0, column=3, padx=6)
+        ttk.Button(barra, text="Aplicar orden", style="Toolbar.TButton", command=self.aplicar_orden).grid(row=0, column=4, padx=6)
+        ttk.Separator(barra, orient="vertical").grid(row=0, column=5, sticky="ns", padx=8)
+        ttk.Button(barra, text="Reformatear nombres", style="Toolbar.TButton", command=self.reformatear_nombres).grid(row=0, column=6, padx=6)
 
         self.estado_var = tk.StringVar(value="")
         ttk.Label(barra, textvariable=self.estado_var, anchor="e").grid(row=0, column=11, sticky="ew")
@@ -361,6 +360,16 @@ class AsmrFrame(ttk.Frame):
             nuevo_indice = indice + direccion
             if 0 <= nuevo_indice < len(items):
                 self.tabla.move(item, "", nuevo_indice)
+
+    def ordenar_asmr(self):
+        grupos = {}
+        for archivo in self.tabla.get_children():
+            artista = self.items.get(archivo, {}).get("artista", "")
+            grupos.setdefault(artista, []).append(archivo)
+
+        for _artista, archivos in sorted(grupos.items(), key=lambda grupo: (-len(grupo[1]), grupo[0].casefold())):
+            for archivo in archivos:
+                self.tabla.move(archivo, "", "end")
 
     def aplicar_orden(self):
         archivos = list(self.tabla.get_children())

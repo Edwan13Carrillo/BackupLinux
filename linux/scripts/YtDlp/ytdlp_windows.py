@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ─────────────────────────────────────────────
-#  yt-dlp GUI (Versión Audiófila con Tkinter)
+#  yt-dlp GUI (Versión Windows con Tkinter)
 # ─────────────────────────────────────────────
 
 import os
@@ -9,17 +9,19 @@ import re
 import json
 import shutil
 import queue
+import platform
 import threading
 import subprocess
-import configparser
-import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
-from pathlib import Path
 
 # ── Directorio de trabajo: todo se descarga aquí, sin excepciones ──
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(SCRIPT_DIR)
+
+# ── Evita que se abra una ventanita de consola negra al lanzar yt-dlp/ffmpeg ──
+# (solo aplica en Windows; en otros sistemas queda en 0 y no hace nada)
+CREATIONFLAGS = subprocess.CREATE_NO_WINDOW if platform.system() == "Windows" else 0
 
 # ── Formatos yt-dlp ──
 VIDEO_FORMATS = {
@@ -30,7 +32,17 @@ VIDEO_FORMATS = {
     "Mejor disponible": "bestvideo+141/bestvideo+bestaudio/best",
 }
 AUDIO_FORMAT = "141/bestaudio"
-PATREON_FORMAT = "bestvideo+bestaudio/best"
+
+# ── Navegadores desde los que yt-dlp puede sacar cookies (todos soportados en Windows) ──
+BROWSER_LABELS = {
+    "Ninguna (sin cookies)": None,
+    "Chrome": "chrome",
+    "Firefox": "firefox",
+    "Edge": "edge",
+    "Brave": "brave",
+    "Opera": "opera",
+    "Vivaldi": "vivaldi",
+}
 
 PROGRESS_RE = re.compile(r"(\d{1,3}(?:\.\d)?)%")
 
@@ -40,186 +52,6 @@ PROGRESS_RE = re.compile(r"(\d{1,3}(?:\.\d)?)%")
 def check_dependencies():
     """Devuelve la lista de binarios que faltan."""
     return [exe for exe in ("yt-dlp", "ffmpeg") if shutil.which(exe) is None]
-
-
-def is_zen_running():
-    """
-    Devuelve True si detecta un proceso de Zen Browser corriendo.
-    Zen puede llamarse 'zen', 'zen-browser' o 'zen-bin' según cómo esté instalado.
-    Usamos pgrep -i para cubrir variantes de mayúsculas/minúsculas.
-    """
-    try:
-        result = subprocess.run(
-            ["pgrep", "-i", "-x", "zen"],
-            capture_output=True,
-        )
-        if result.returncode == 0:
-            return True
-        result2 = subprocess.run(
-            ["pgrep", "-i", "zen-browser"],
-            capture_output=True,
-        )
-        return result2.returncode == 0
-    except FileNotFoundError:
-        # Si pgrep no existe (raro en Linux, pero por si acaso)
-        return False
-
-
-def _has_moz_cookies(profile_dir: Path) -> bool:
-    """
-    Verifica que cookies.sqlite exista Y que realmente contenga la tabla moz_cookies.
-    Abre el archivo en modo inmutable (read-only) para no interferir con el navegador.
-    """
-    db = profile_dir / "cookies.sqlite"
-    if not db.is_file():
-        return False
-    try:
-        # uri=True + immutable=1 → SQLite no intenta escribir ni crear WAL propio
-        conn = sqlite3.connect(f"file:{db}?mode=ro&immutable=1", uri=True, timeout=3)
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='moz_cookies'"
-        )
-        found = cur.fetchone() is not None
-        conn.close()
-        return found
-    except Exception:
-        return False
-
-
-def _zen_is_running(profile_dir: Path) -> bool:
-    """
-    Detecta si Zen Browser tiene el perfil bloqueado (.parentlock existe y está locked).
-    Un lock activo significa que el navegador está abierto → peligro de corrupción WAL.
-    """
-    lock_file = profile_dir / ".parentlock"
-    if not lock_file.exists():
-        return False
-    try:
-        import fcntl
-        with open(lock_file, "r") as fh:
-            try:
-                fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                fcntl.flock(fh, fcntl.LOCK_UN)
-                return False  # Se pudo bloquear → el navegador NO lo tiene
-            except OSError:
-                return True   # No se pudo bloquear → navegador abierto
-    except Exception:
-        return False
-
-
-def _candidates_from_ini(base: Path):
-    """
-    Lee installs.ini y profiles.ini para obtener los perfiles en orden de prioridad:
-    primero el perfil activo real, luego todos los demás.
-    """
-    result = []
-
-    # installs.ini (Firefox 67+ / Zen): apunta directamente al perfil activo
-    installs = base / "installs.ini"
-    if installs.is_file():
-        cfg = configparser.ConfigParser()
-        cfg.read(installs)
-        for section in cfg.sections():
-            path_val = cfg.get(section, "Default", fallback="")
-            if path_val:
-                p = (base / path_val) if not Path(path_val).is_absolute() else Path(path_val)
-                if p.is_dir() and p not in result:
-                    result.append(p)
-
-    # profiles.ini: primero Default=1, después todos los demás
-    profiles = base / "profiles.ini"
-    if profiles.is_file():
-        cfg = configparser.ConfigParser()
-        cfg.read(profiles)
-        sections = [s for s in cfg.sections() if s.lower().startswith("profile")]
-        # Default=1 primero
-        for section in sections:
-            if cfg.get(section, "Default", fallback="0") == "1":
-                path_val = cfg.get(section, "Path", fallback="")
-                is_rel  = cfg.get(section, "IsRelative", fallback="1") == "1"
-                if path_val:
-                    p = (base / path_val) if is_rel else Path(path_val)
-                    if p.is_dir() and p not in result:
-                        result.append(p)
-        # Resto
-        for section in sections:
-            path_val = cfg.get(section, "Path", fallback="")
-            is_rel   = cfg.get(section, "IsRelative", fallback="1") == "1"
-            if path_val:
-                p = (base / path_val) if is_rel else Path(path_val)
-                if p.is_dir() and p not in result:
-                    result.append(p)
-
-    return result
-
-
-def find_zen_profile():
-    """
-    Busca el perfil de Zen Browser activo con cookies válidas (tabla moz_cookies real).
-    Orden de búsqueda: installs.ini → profiles.ini → glob *.Default* → cualquier carpeta.
-    Además detecta si el navegador está abierto y corta antes de causar problemas.
-    Devuelve (Path_del_perfil, None) si todo bien, o (None, mensaje_error) si hay problema.
-    """
-    base = Path.home() / ".config" / "zen"
-    if not base.is_dir():
-        return None, (
-            "No encontré ~/.config/zen.\n"
-            "¿Tienes Zen Browser instalado en esta máquina?"
-        )
-
-    # Candidatos en orden de prioridad
-    candidates = _candidates_from_ini(base)
-
-    # Fallback: glob
-    glob_dirs = sorted(base.glob("*.Default*"))
-    if not glob_dirs:
-        glob_dirs = sorted(p for p in base.iterdir() if p.is_dir())
-    for p in glob_dirs:
-        if p not in candidates:
-            candidates.append(p)
-
-    if not candidates:
-        return None, (
-            "No encontré ninguna carpeta de perfil dentro de ~/.config/zen.\n"
-            "Abre Zen y déjalo cargar al menos una vez."
-        )
-
-    # Buscar el primero con moz_cookies válido
-    for profile in candidates:
-        if not _has_moz_cookies(profile):
-            continue
-
-        # Perfil válido encontrado — ¿está el navegador abierto?
-        if _zen_is_running(profile):
-            return None, (
-                "Encontré tu perfil de Zen Browser con cookies, pero el navegador "
-                "está abierto en este momento.\n\n"
-                "⚠ Abrir cookies.sqlite mientras el navegador corre puede corromper "
-                "la base de datos (modo WAL de SQLite).\n\n"
-                "Cierra Zen completamente y vuelve a intentarlo."
-            )
-
-        return profile, None
-
-    # Hay perfiles pero ninguno tiene moz_cookies válido
-    any_sqlite = any((p / "cookies.sqlite").is_file() for p in candidates)
-    if any_sqlite:
-        return None, (
-            "Encontré cookies.sqlite en el perfil de Zen, pero la tabla moz_cookies "
-            "no existe o no es accesible.\n\n"
-            "Esto puede pasar si:\n"
-            "• Zen estaba abierto cuando corriste el script (prueba cerrarlo primero).\n"
-            "• El perfil encontrado es secundario y no tiene sesión iniciada.\n\n"
-            "Cierra Zen completamente, ábrelo de nuevo, inicia sesión en YouTube y "
-            "ciérralo antes de usar el script."
-        )
-
-    return None, (
-        "Encontré la carpeta de Zen Browser, pero ningún perfil tiene cookies.sqlite.\n\n"
-        "Abre Zen, inicia sesión en YouTube (y Patreon si aplica) al menos una vez,\n"
-        "ciérralo y vuelve a intentarlo."
-    )
 
 
 def sanitize_filename(name):
@@ -241,27 +73,30 @@ def resolve_entry_url(entry):
     return u or ""
 
 
-def cookie_args(profile_dir):
-    return ["--cookies-from-browser", f"firefox:{profile_dir}"]
+def cookie_args(browser_label):
+    """
+    Traduce la opción elegida en el combo a los flags de yt-dlp.
+    yt-dlp sabe encontrar solito el perfil por defecto de cada navegador
+    en Windows, así que no hace falta buscar ni tocar ningún archivo.
+    Si el usuario elige "Ninguna", no se manda ningún flag de cookies.
+    """
+    key = BROWSER_LABELS.get(browser_label)
+    if not key:
+        return []
+    return ["--cookies-from-browser", key]
 
 
 # ───────────────────────── Constructores de comandos ─────────────────────────
 
-def build_video_cmd(url, quality, out_template, profile_dir):
+def build_video_cmd(url, quality, out_template, browser_label):
     fmt = VIDEO_FORMATS.get(quality, VIDEO_FORMATS["Mejor disponible"])
-    return ["yt-dlp", "-f", fmt, *cookie_args(profile_dir),
+    return ["yt-dlp", "-f", fmt, *cookie_args(browser_label),
             "--merge-output-format", "mkv", "-o", out_template, url]
 
 
-def build_audio_cmd(url, out_template, profile_dir):
+def build_audio_cmd(url, out_template, browser_label):
     return ["yt-dlp", "-f", AUDIO_FORMAT, "-x", "--audio-format", "m4a",
-            *cookie_args(profile_dir), "--embed-thumbnail", "--add-metadata",
-            "-o", out_template, url]
-
-
-def build_patreon_cmd(url, out_template, profile_dir):
-    return ["yt-dlp", *cookie_args(profile_dir), "-f", PATREON_FORMAT,
-            "--merge-output-format", "mp4", "--embed-thumbnail", "--add-metadata",
+            *cookie_args(browser_label), "--embed-thumbnail", "--add-metadata",
             "-o", out_template, url]
 
 
@@ -274,6 +109,7 @@ def run_and_stream(cmd, log_queue, prefix=""):
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1, universal_newlines=True,
+            creationflags=CREATIONFLAGS,
         )
     except FileNotFoundError:
         log_queue.put(("error", "No encontré el ejecutable 'yt-dlp'. ¿Está en el PATH?"))
@@ -297,11 +133,14 @@ def run_and_stream(cmd, log_queue, prefix=""):
 
 # ───────────────────────── Hilos de trabajo ─────────────────────────
 
-def analyze_playlist_thread(url, profile_dir, log_queue):
-    cmd = ["yt-dlp", "-J", "--flat-playlist", *cookie_args(profile_dir), url]
+def analyze_playlist_thread(url, browser_label, log_queue):
+    cmd = ["yt-dlp", "-J", "--flat-playlist", *cookie_args(browser_label), url]
     log_queue.put(("status", "Analizando la playlist..."))
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=180,
+            creationflags=CREATIONFLAGS,
+        )
     except FileNotFoundError:
         log_queue.put(("error", "No encontré el ejecutable 'yt-dlp'. ¿Está en el PATH?"))
         return
@@ -329,18 +168,15 @@ def analyze_playlist_thread(url, profile_dir, log_queue):
     log_queue.put(("playlist_ready", playlist_title, entries))
 
 
-def download_single_thread(option, url, quality, profile_dir, log_queue):
+def download_single_thread(option, url, quality, browser_label, log_queue):
     out_template = os.path.join(SCRIPT_DIR, "%(title)s.%(ext)s")
 
     if option == 1:
-        cmd = build_video_cmd(url, quality, out_template, profile_dir)
+        cmd = build_video_cmd(url, quality, out_template, browser_label)
         msg = "Descargando video y fusionando con FFmpeg..."
     elif option == 2:
-        cmd = build_audio_cmd(url, out_template, profile_dir)
+        cmd = build_audio_cmd(url, out_template, browser_label)
         msg = "Extrayendo audio (prioridad: formato 141, AAC 256kbps)..."
-    elif option == 5:
-        cmd = build_patreon_cmd(url, out_template, profile_dir)
-        msg = "Descargando contenido de Patreon..."
     else:
         log_queue.put(("error", "Opción inválida."))
         return
@@ -351,16 +187,20 @@ def download_single_thread(option, url, quality, profile_dir, log_queue):
     if rc == 0:
         log_queue.put(("done", True, SCRIPT_DIR))
     else:
+        extra = (
+            "• Si activaste cookies, revisa que el navegador elegido tenga sesión "
+            "iniciada en YouTube.\n"
+            if browser_label != "Ninguna (sin cookies)" else ""
+        )
         log_queue.put(("error",
             "yt-dlp terminó con error. Revisa el registro.\n\n"
             "Verifica que:\n"
             "• La URL sea correcta.\n"
-            "• Tengas sesión iniciada en Zen Browser.\n"
-            "• Zen esté CERRADO (cookies.sqlite se bloquea si el navegador está abierto)."
+            f"{extra}"
         ))
 
 
-def download_playlist_thread(option, quality, playlist_title, selected_entries, keep_numbering, profile_dir, log_queue):
+def download_playlist_thread(option, quality, playlist_title, selected_entries, keep_numbering, browser_label, log_queue):
     folder = sanitize_filename(playlist_title)
     full_dir = os.path.join(SCRIPT_DIR, folder)
     os.makedirs(full_dir, exist_ok=True)
@@ -386,9 +226,9 @@ def download_playlist_thread(option, quality, playlist_title, selected_entries, 
             continue
 
         if option == 3:
-            cmd = build_video_cmd(video_url, quality, out_template, profile_dir)
+            cmd = build_video_cmd(video_url, quality, out_template, browser_label)
         else:
-            cmd = build_audio_cmd(video_url, out_template, profile_dir)
+            cmd = build_audio_cmd(video_url, out_template, browser_label)
 
         rc = run_and_stream(cmd, log_queue, prefix=prefix)
         if rc != 0:
@@ -470,15 +310,13 @@ class PlaylistSelectorWindow(tk.Toplevel):
 class App:
     OPTIONS = [
         (1, "🎥 Video individual de YouTube"),
-        (2, "🎵 Música / ASMR individual de YouTube"),
+        (2, "🎵 Música individual de YouTube"),
         (3, "📂 Playlist de Video de YouTube"),
-        (4, "🎶 Playlist de Música / ASMR de YouTube"),
-        (5, "💰 Video de Patreon"),
+        (4, "🎶 Playlist de Música de YouTube"),
     ]
 
-    def __init__(self, root, profile_dir):
+    def __init__(self, root):
         self.root = root
-        self.profile_dir = profile_dir
         self.log_queue = queue.Queue()
         self.busy = False
         self._pending_opt = None
@@ -490,9 +328,9 @@ class App:
 
     # ── UI ──
     def _build_ui(self):
-        self.root.title("yt-dlp GUI 🎧 — Edición Tkinter")
-        self.root.geometry("620x680")
-        self.root.minsize(560, 600)
+        self.root.title("yt-dlp GUI 🎧 — Edición Windows")
+        self.root.geometry("620x700")
+        self.root.minsize(560, 620)
 
         main = ttk.Frame(self.root, padding=15)
         main.pack(fill="both", expand=True)
@@ -530,6 +368,14 @@ class App:
             main, text="Conservar numeración de la playlist",
             variable=self.number_playlist_var,
         )
+
+        # ── Cookies opcionales: nada de búsquedas automáticas, el usuario elige ──
+        ttk.Label(main, text="Cookies del navegador (opcional, para videos privados/con edad):").pack(anchor="w")
+        self.browser_var = tk.StringVar(value="Ninguna (sin cookies)")
+        ttk.Combobox(
+            main, textvariable=self.browser_var, state="readonly",
+            values=list(BROWSER_LABELS.keys()),
+        ).pack(fill="x", pady=(0, 10))
 
         self.action_btn = ttk.Button(main, text="Descargar", command=self._on_action)
         self.action_btn.pack(fill="x", pady=(0, 10))
@@ -584,27 +430,9 @@ class App:
             )
             return
 
-        # ── Zen Browser debe estar cerrado antes de tocar cookies.sqlite ──
-        # Si Zen está abierto, el archivo está en modo WAL (transacciones pendientes).
-        # yt-dlp copiaría un SQLite inconsistente → error "no such table: moz_cookies".
-        # Peor aún: cuando Zen reabre y detecta el WAL corrupto, hace rollback
-        # y puede limpiar cookies recientes. Bloqueamos AQUÍ para evitar eso.
-        if is_zen_running():
-            messagebox.showerror(
-                "Zen Browser está abierto",
-                "Cierra Zen Browser antes de descargar.\n\n"
-                "¿Por qué? yt-dlp necesita leer cookies.sqlite, pero mientras Zen\n"
-                "está corriendo ese archivo tiene transacciones pendientes (modo WAL).\n\n"
-                "Si se lee en ese estado:\n"
-                "  • yt-dlp falla con 'no such table: moz_cookies'\n"
-                "  • Al reabrir Zen puede detectar inconsistencia y hacer rollback,\n"
-                "    borrándote cookies recientes.\n\n"
-                "Cierra Zen, dale OK aquí e intenta de nuevo.",
-            )
-            return
-
         opt = self.option_var.get()
         quality = self.quality_var.get()
+        browser_label = self.browser_var.get()
 
         self.log_text.configure(state="normal")
         self.log_text.delete("1.0", "end")
@@ -621,7 +449,7 @@ class App:
             self._pending_quality = quality
             threading.Thread(
                 target=analyze_playlist_thread,
-                args=(url, self.profile_dir, self.log_queue),
+                args=(url, browser_label, self.log_queue),
                 daemon=True,
             ).start()
         else:
@@ -630,7 +458,7 @@ class App:
             self.progress["value"] = 0
             threading.Thread(
                 target=download_single_thread,
-                args=(opt, url, quality, self.profile_dir, self.log_queue),
+                args=(opt, url, quality, browser_label, self.log_queue),
                 daemon=True,
             ).start()
 
@@ -641,7 +469,7 @@ class App:
         threading.Thread(
             target=download_playlist_thread,
             args=(self._pending_opt, self._pending_quality, self._pending_title,
-                  selected_entries, self.number_playlist_var.get(), self.profile_dir,
+                  selected_entries, self.number_playlist_var.get(), self.browser_var.get(),
                   self.log_queue),
             daemon=True,
         ).start()
@@ -721,14 +549,8 @@ def main():
         root.destroy()
         sys.exit(1)
 
-    profile_dir, err = find_zen_profile()
-    if err:
-        messagebox.showerror("Sin cookies de Zen Browser", err)
-        root.destroy()
-        sys.exit(1)
-
     root.deiconify()
-    App(root, str(profile_dir))
+    App(root)
     root.mainloop()
 
 

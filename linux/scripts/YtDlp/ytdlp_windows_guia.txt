@@ -1,0 +1,23 @@
+Instrucciones de uso en Windows
+
+1. Python -- instala Python 3.10+ desde https://www.python.org/downloads/. En el instalador, marca ✅ "Add python.exe to PATH". Tkinter viene incluido, no toca instalar nada aparte.
+
+2. yt-dlp -- abre CMD o PowerShell y corre:
+   "pip install -U yt-dlp"
+
+Eso lo deja en el PATH automáticamente (vía la carpeta Scripts de Python).
+
+3. ffmpeg -- Windows no lo trae. Opciones:
+- Fácil: winget install ffmpeg (si tienes winget, viene en Windows 10/11 actualizado).
+
+- Manual: descarga un build de gyan.dev (el "essentials" basta), descomprime, y agrega la carpeta bin a tu variable de entorno PATH.
+
+- Verifica con ffmpeg -version en consola.
+
+4. Correr el script:
+   "python ytdlp_gui.py"
+
+- Si quieres que no aparezca ni la consola de Python detrás, usa pythonw en vez de python:
+   "pythonw ytdlp_gui.py"
+
+5. Uso: pega la URL, elige qué quieres hacer, calidad (si aplica), y si necesitas cookies (por ejemplo para videos con restricción de edad o privados) selecciona tu navegador en el combo — si no, déjalo en "Ninguna".

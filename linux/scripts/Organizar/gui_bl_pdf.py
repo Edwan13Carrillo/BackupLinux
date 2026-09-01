@@ -306,17 +306,14 @@ class BlPdfFrame(ttk.Frame):
             barra.columnconfigure(i, weight=0)
         barra.columnconfigure(13, weight=1)
 
-        ttk.Button(barra, text="Agregar", style="Toolbar.TButton", command=self.agregar).grid(row=0, column=0, padx=(0, 6))
-        ttk.Button(barra, text="Eliminar", style="Toolbar.TButton", command=self.eliminar_seleccion).grid(row=0, column=1, padx=6)
-        ttk.Separator(barra, orient="vertical").grid(row=0, column=2, sticky="ns", padx=8)
         ttk.Checkbutton(
             barra,
             text="Limpiar símbolos",
             variable=self.limpiar_simbolos_var,
             command=self.refrescar,
-        ).grid(row=0, column=3, padx=6)
-        ttk.Button(barra, text="Resolver dudoso", style="Toolbar.TButton", command=self.resolver_dudoso).grid(row=0, column=4, padx=6)
-        ttk.Button(barra, text="Organizar", style="Toolbar.TButton", command=self.organizar).grid(row=0, column=5, padx=6)
+        ).grid(row=0, column=0, padx=6)
+        ttk.Button(barra, text="Resolver dudoso", style="Toolbar.TButton", command=self.resolver_dudoso).grid(row=0, column=1, padx=6)
+        ttk.Button(barra, text="Organizar", style="Toolbar.TButton", command=self.organizar).grid(row=0, column=2, padx=6)
 
         self.estado_var = tk.StringVar(value="")
         ttk.Label(barra, textvariable=self.estado_var, anchor="e").grid(row=0, column=13, sticky="ew")
