@@ -5,6 +5,7 @@
 # ─────────────────────────────────────────
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+INVENTORY="$SCRIPT_DIR/ansible/inventory.ini"
 PLAYBOOK="$SCRIPT_DIR/ansible/playbook.yml"
 
 # ─────────────────────────────────────────
@@ -128,19 +129,39 @@ check_ansible() {
 }
 
 check_ansible_collection() {
+    local missing=0
+
     if ansible-galaxy collection list community.general >/dev/null 2>&1; then
         print_ok "La colección community.general ya está instalada."
-        return 0
-    fi
-
-    print_info "Instalando la colección Ansible community.general..."
-
-    if ansible-galaxy collection install community.general; then
-        print_ok "community.general se instaló correctamente."
     else
-        print_err "No se pudo instalar la colección community.general."
-        exit 1
+        print_info "Instalando la colección Ansible community.general..."
+
+        if ansible-galaxy collection install community.general; then
+            print_ok "community.general se instaló correctamente."
+        else
+            print_err "No se pudo instalar la colección community.general."
+            missing=1
+        fi
     fi
+
+    if ansible-galaxy collection list ansible.posix >/dev/null 2>&1; then
+        print_ok "La colección ansible.posix ya está instalada."
+    else
+        print_info "Instalando la colección Ansible ansible.posix..."
+
+        if ansible-galaxy collection install ansible.posix; then
+            print_ok "ansible.posix se instaló correctamente."
+        else
+            print_err "No se pudo instalar la colección ansible.posix."
+            missing=1
+        fi
+    fi
+
+    if [ "$missing" -ne 0 ]; then
+        return 1
+    fi
+
+    return 0
 }
 
 # ─────────────────────────────────────────
@@ -152,7 +173,34 @@ run_playbook() {
 
     printf '\n'
 
-    if ansible-playbook "$PLAYBOOK" --tags "$tags" --extra-vars "PROFILE=$PROFILE"; then
+    # Comprobar que el inventario existe.
+    if [ ! -f "$INVENTORY" ]; then
+        print_err "No se encontró el inventario de Ansible:"
+        echo "    $INVENTORY"
+        return 1
+    fi
+
+    # Comprobar que el playbook existe.
+    if [ ! -f "$PLAYBOOK" ]; then
+        print_err "No se encontró el playbook de Ansible:"
+        echo "    $PLAYBOOK"
+        return 1
+    fi
+
+    print_info "Ejecutando Ansible con:"
+    printf '    Inventario: %s\n' "$INVENTORY"
+    printf '    Playbook:   %s\n' "$PLAYBOOK"
+    printf '    Tags:       %s\n' "$tags"
+    printf '    Perfil:     %s\n' "$PROFILE"
+    printf '\n'
+
+    if ansible-playbook \
+        -i "$INVENTORY" \
+        "$PLAYBOOK" \
+        --tags "$tags" \
+        --extra-vars "PROFILE=$PROFILE" \
+        --ask-become-pass; then
+
         print_ok "Ansible terminó correctamente."
         return 0
     fi
@@ -529,23 +577,48 @@ menu() {
 # ─────────────────────────────────────────
 
 if [ "$EUID" -eq 0 ]; then
-    print_err "No corras el script como root directamente. Usa tu usuario normal."
+    print_err "No corras el script como root directamente."
+    print_info "Ejecuta el script con tu usuario normal."
     exit 1
 fi
 
+# Verificar que sudo funciona antes de comenzar.
 if ! sudo -v; then
-    print_err "No se pudo obtener privilegios de sudo."
+    print_err "No se pudo autenticar con sudo."
     exit 1
 fi
 
+# Comprobar playbook.
 if [ ! -f "$PLAYBOOK" ]; then
     print_err "No se encontró el playbook:"
     echo "    $PLAYBOOK"
     exit 1
 fi
 
+# Comprobar inventario.
+if [ ! -f "$INVENTORY" ]; then
+    print_err "No se encontró el inventario:"
+    echo "    $INVENTORY"
+    printf '\n'
+    print_info "El inventario esperado debe contener, por ejemplo:"
+    echo "    localhost ansible_connection=local"
+    exit 1
+fi
+
+# Comprobar que el inventario realmente contiene localhost.
+if ! grep -Eq '^[[:space:]]*localhost([[:space:]]|$)' "$INVENTORY"; then
+    print_warn "El inventario existe, pero no parece contener 'localhost'."
+    print_info "Contenido actual del inventario:"
+    sed 's/^/    /' "$INVENTORY"
+    printf '\n'
+fi
+
 check_ansible
-check_ansible_collection
+if ! check_ansible_collection; then
+    print_err "No se pudieron preparar las colecciones de Ansible."
+    exit 1
+fi
 
 seleccionar_perfil
 menu
+
