@@ -1,16 +1,17 @@
 #!/bin/bash
 
 # ─────────────────────────────────────────
-# Setup CachyOS KDE — Versión 100% Bash
-# Respaldo sin dependencia de Ansible.
-# Traducción directa de ansible/playbook.yml
+# Setup CachyOS — Versión 100% Bash
 # ─────────────────────────────────────────
 
 # ─────────────────────────────────────────
 # Configuración
 # ─────────────────────────────────────────
 
-CONFIG_BK_DIR="$HOME/BackupLinux/linux/configs"
+BK_COMMON="$HOME/BackupLinux/linux/common"
+BK_NIRI="$HOME/BackupLinux/linux/niri"
+BK_PLASMA="$HOME/BackupLinux/linux/plasma"
+ASSETS_DIR="$HOME/BackupLinux/assets"
 LOCAL_DIR="$HOME/.local/share"
 CONFIG_DIR="$HOME/.config"
 
@@ -113,8 +114,19 @@ seleccionar_perfil() {
 PAQUETES_BASE=(
     discord telegram-desktop zen-browser-bin libreoffice-still libreoffice-still-es
     git fastfetch yt-dlp qbittorrent fuse2 mkvtoolnix-gui prismlauncher
-    base-devel yay flatpak python-mutagen tk rsync snapper
+    base-devel paru flatpak python-mutagen tk rsync snapper
     cachyos-snapper-support btrfs-assistant
+    alacritty haruna baobab gnome-text-editor
+)
+
+# Paquetes exclusivos del perfil Niri + Noctalia (repos oficiales / CachyOS)
+PAQUETES_NIRI=(
+    matugen quickshell
+)
+
+# Paquetes exclusivos del perfil Niri que solo existen en AUR
+PAQUETES_NIRI_AUR=(
+    sddm-astronaut-theme
 )
 
 instalar_paquetes_red() {
@@ -140,15 +152,32 @@ instalar_paquetes() {
     fi
     print_ok "Paquetes principales instalados."
 
+    if [ "$PROFILE" = "niri" ]; then
+        print_info "Instalando paquetes específicos de Niri..."
+        if ! sudo pacman -S --needed --noconfirm "${PAQUETES_NIRI[@]}"; then
+            print_err "Falló la instalación de paquetes de Niri."
+            return 1
+        fi
+        print_ok "Paquetes de Niri instalados."
+
+        print_info "Instalando sddm-astronaut-theme (AUR) con paru..."
+        if paru -S --needed --noconfirm "${PAQUETES_NIRI_AUR[@]}"; then
+            print_ok "sddm-astronaut-theme instalado."
+        else
+            print_err "Falló la instalación de paquetes AUR de Niri."
+            return 1
+        fi
+    fi
+
     if ! instalar_paquetes_red; then
         return 1
     fi
 
-    print_info "Instalando Visual Studio Code (AUR) con yay..."
-    # OJO: yay NO se corre con sudo, el mismo escala privilegios cuando
-    # necesita instalar el paquete compilado. Si yay no está en PATH
+    print_info "Instalando Visual Studio Code (AUR) con paru..."
+    # OJO: paru NO se corre con sudo, el mismo escala privilegios cuando
+    # necesita instalar el paquete compilado. Si paru no está en PATH
     # todavía, corre esta fase de nuevo después de que termine.
-    if yay -S --needed --noconfirm visual-studio-code-bin; then
+    if paru -S --needed --noconfirm visual-studio-code-bin; then
         print_ok "VS Code instalado."
     else
         print_err "Falló la instalación de VS Code."
@@ -171,6 +200,13 @@ instalar_paquetes() {
         return 1
     fi
 
+    print_info "Configurando Zen como navegador predeterminado..."
+    if xdg-settings set default-web-browser zen.desktop; then
+        print_ok "Zen configurado como navegador predeterminado."
+    else
+        print_warn "No se pudo configurar Zen como predeterminado (hazlo manual si hace falta)."
+    fi
+
     print_ok "Fase 1 completada."
 }
 
@@ -181,26 +217,47 @@ instalar_paquetes() {
 # Formato: origen|destino|delete(0/1)|sudo(0/1)
 # Mismos orígenes, destinos y flags que las listas del playbook.
 DOTFILES_COMUNES=(
-    "$CONFIG_BK_DIR/fonts/|$LOCAL_DIR/fonts/|0|0"
-    "$CONFIG_BK_DIR/pixels|/usr/share/plymouth/themes/|1|1"
-    "$CONFIG_BK_DIR/local/Bibata-Modern-Ice|$HOME/.icons/|1|0"
-    "$CONFIG_BK_DIR/fastfetch/|$CONFIG_DIR/fastfetch/|0|0"
-    "$CONFIG_BK_DIR/alacritty/|$CONFIG_DIR/alacritty/|0|0"
-    "$CONFIG_BK_DIR/haruna/|$CONFIG_DIR/haruna/|0|0"
+    "$BK_COMMON/fonts/|$LOCAL_DIR/fonts/|0|0"
+    "$BK_COMMON/Starlord|/usr/share/plymouth/themes/|1|1"
+    "$BK_COMMON/Bibata-Modern-Ice|$HOME/.icons/|1|0"
+    "$BK_COMMON/fastfetch/|$CONFIG_DIR/fastfetch/|0|0"
+    "$BK_COMMON/alacritty/|$CONFIG_DIR/alacritty/|0|0"
+    "$BK_COMMON/haruna/|$CONFIG_DIR/haruna/|0|0"
 )
 
 DOTFILES_PLASMA=(
-    "$CONFIG_BK_DIR/local/Layan|$LOCAL_DIR/aurorae/themes/|1|0"
-    "$CONFIG_BK_DIR/local/desktoptheme|$LOCAL_DIR/plasma/|1|0"
-    "$CONFIG_BK_DIR/local/a2n.kuro|$LOCAL_DIR/plasma/look-and-feel/|0|0"
-    "$CONFIG_BK_DIR/Tela|$LOCAL_DIR/icons/|1|0"
-    "$CONFIG_BK_DIR/local/org.kde.plasma.clearclock|$LOCAL_DIR/plasma/plasmoids/|1|0"
-    "$CONFIG_BK_DIR/local/cachyosTG|$LOCAL_DIR/plasma/look-and-feel/|0|0"
-    "$CONFIG_BK_DIR/kdedefaults/|$CONFIG_DIR/kdedefaults/|0|0"
+    "$BK_PLASMA/Layan|$LOCAL_DIR/aurorae/themes/|1|0"
+    "$BK_PLASMA/desktoptheme|$LOCAL_DIR/plasma/|1|0"
+    "$BK_PLASMA/a2n.kuro|$LOCAL_DIR/plasma/look-and-feel/|0|0"
+    "$BK_PLASMA/Tela|$LOCAL_DIR/icons/|1|0"
+    "$BK_PLASMA/org.kde.plasma.clearclock|$LOCAL_DIR/plasma/plasmoids/|1|0"
+    "$BK_PLASMA/cachyosTG|$LOCAL_DIR/plasma/look-and-feel/|0|0"
+    "$BK_PLASMA/kdedefaults/|$CONFIG_DIR/kdedefaults/|0|0"
+    "$BK_PLASMA/ArchDark.colors|$LOCAL_DIR/color-schemes/|0|0"
 )
 
-# Reservado para futuros dotfiles de Niri + Noctalia.
-DOTFILES_NIRI=()
+DOTFILES_NIRI=(
+    "$BK_NIRI/matugen|$CONFIG_DIR/|1|0"
+    "$BK_NIRI/noctalia|$CONFIG_DIR/|1|0"
+    "$BK_NIRI/niri/|$CONFIG_DIR/niri/|1|0"
+    "$BK_NIRI/quickshell/wallpaper-picker|$CONFIG_DIR/quickshell/|1|0"
+    "$BK_NIRI/sddm/metadata.desktop|/usr/share/sddm/themes/sddm-astronaut-theme/|0|1"
+    "$BK_NIRI/sddm/japanese_aesthetic.conf|/usr/share/sddm/themes/sddm-astronaut-theme/Themes/|0|1"
+    "$ASSETS_DIR/icons/archlinu.png|/usr/share/icons/|0|1"
+)
+
+configurar_sddm_theme() {
+    print_info "Activando sddm-astronaut-theme en SDDM..."
+
+    if sudo mkdir -p /etc/sddm.conf.d &&
+       printf '[Theme]\nCurrent=sddm-astronaut-theme\n' | sudo tee /etc/sddm.conf.d/theme.conf >/dev/null; then
+        print_ok "SDDM configurado para usar sddm-astronaut-theme."
+        return 0
+    else
+        print_err "Falló activando el tema de SDDM."
+        return 1
+    fi
+}
 
 copiar_dotfiles() {
     print_header "Fase 2 — Dotfiles y configuraciones"
@@ -254,6 +311,16 @@ copiar_dotfiles() {
         print_warn "Ve a: Ajustes del sistema > Aspecto > Tema global y selecciona 'CachyTG' para aplicarlo."
         print_warn "Cierra sesión y vuelve a entrar para que KDE aplique todos los temas."
         print_warn "Agrega el widget Clear Clock al escritorio, reemplaza su config.qml y refresca Plasma con: kquitapp6 plasmashell && kstart5 plasmashell"
+    fi
+
+    if [ "$PROFILE" = "niri" ]; then
+        chmod +x "$CONFIG_DIR/noctalia/hooks/matugen-wallpaper.sh" 2>/dev/null || true
+
+        if ! configurar_sddm_theme; then
+            fallo=1
+        fi
+
+        print_warn "Abre Noctalia y cambia de wallpaper una vez para activar el pipeline de matugen (borde de Niri)."
     fi
 
     if [ "$fallo" -eq 0 ]; then
@@ -492,6 +559,14 @@ resumen_manual() {
     echo "    • Prism Launcher: seleccionar Java 17"
     echo "    • Descargar SmartVideo para el fondo de pantalla"
     echo '    • Snapshot maestra: sudo snapper -c root create --description "Sistema base configurado"'
+
+    if [ "$PROFILE" = "niri" ]; then
+        echo "    • Millennium (Steam): paru -S millennium, abrir Steam, activar el tema NEVKO-UI a mano."
+        echo "      Luego copiar el CSS:"
+        echo "        cp \"$BK_NIRI/Millennium/Library Code.css\" \\"
+        echo "          ~/.steam/steam/millennium/themes/NEVKO-UI/\"Main Refresh UI\"/\"Refresh Library\"/\"Library Code.css\""
+        echo "      (confirma esa ruta real de Steam cuando tengas el subvolumen games/ montado, puede variar)."
+    fi
     printf '\n'
 
     echo "  Reinicia el sistema después de completar estos pasos para que todo quede aplicado correctamente."

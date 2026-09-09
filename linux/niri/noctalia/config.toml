@@ -1,0 +1,153 @@
+[bar]
+order = [ "default" ]
+
+    [bar.default]
+    background_opacity = 0.59999998658895493
+    center = [ "group:g2" ]
+    color = "tertiary"
+    end = [ "group:g1", "recorder", "session" ]
+    font_family = "Fredoka"
+    margin_ends = 0
+    position = "left"
+    radius = 20
+    scale = 1.1000000089406967
+    start = [ "launcher", "workspaces" ]
+    thickness = 40
+
+        [[bar.default.capsule_group]]
+        accordion = true
+        accordion_direction = "end"
+        enabled = true
+        fill = "surface_variant"
+        id = "g1"
+        members = [ "battery", "network", "bluetooth", "notifications", "wallhaven", "tray" ]
+        opacity = 1.0
+        padding = 6.0
+
+        [[bar.default.capsule_group]]
+        accordion = true
+        accordion_direction = "end"
+        enabled = true
+        fill = "surface_variant"
+        id = "g2"
+        members = [ "clock", "control-center" ]
+        opacity = 1.0
+        padding = 6.0
+
+[desktop_widgets]
+schema_version = 2
+widget_order = []
+
+    [desktop_widgets.grid]
+    cell_size = 16
+    major_interval = 4
+    visible = true
+
+    [desktop_widgets.widget]
+
+[hooks]
+wallpaper_changed = "$HOME/.config/noctalia/hooks/matugen-wallpaper.sh"
+
+[location]
+address = "Bogota"
+
+[lockscreen_widgets]
+enabled = false
+schema_version = 2
+widget_order = [ "lockscreen-login-box@eDP-1" ]
+
+    [lockscreen_widgets.grid]
+    cell_size = 16
+    major_interval = 4
+    visible = true
+
+    [lockscreen_widgets.widget."lockscreen-login-box@eDP-1"]
+    box_height = 196.0
+    box_width = 810.0
+    cx = 960.0
+    cy = 898.0
+    output = "eDP-1"
+    placement_height = 1080.0
+    placement_width = 1920.0
+    rotation = 0.0
+    type = "login_box"
+
+        [lockscreen_widgets.widget."lockscreen-login-box@eDP-1".settings]
+        background_color = "surface_variant"
+        background_opacity = 0.88
+        background_radius = 12.0
+        center_password_text = false
+        input_opacity = 1.0
+        input_radius = 6.0
+        layout = "regular"
+        show_caps_lock = true
+        show_keyboard_layout = true
+        show_login_button = true
+        show_media = true
+        show_session_buttons = true
+        show_unlock_hint = true
+        show_weather = true
+
+[nightlight]
+enabled = true
+temperature_day = 10000
+
+[plugin_settings."noctalia/screen_recorder"]
+show_cursor = false
+
+[plugin_settings."noctalia/wallhaven"]
+download_dir = "/home/mattprueba/Descargas/Wallpapers"
+
+[plugins]
+enabled = [ "noctalia/wallhaven", "noctalia/screen_recorder" ]
+
+[shell]
+avatar_path = "/home/mattprueba/BackupLinux/assets/icons/gatico.jpg"
+font_family = "Fredoka"
+lang = "es"
+polkit_agent = true
+telemetry_enabled = true
+time_format = "{:%I:%M}"
+
+    [shell.panel]
+    transparency_mode = "glass"
+
+[theme]
+builtin = "Catppuccin"
+community_palette = "Oxocarbon"
+mode = "dark"
+source = "builtin"
+wallpaper_scheme = "m3-content"
+
+[wallpaper]
+directory = "/home/mattprueba/Descargas/Wallpapers"
+
+    [wallpaper.default]
+    path = "/home/mattprueba/Descargas/Wallpapers/wallhaven-lydk7r.jpg"
+
+    [wallpaper.last]
+    path = "/home/mattprueba/Descargas/Wallpapers/wallhaven-lydk7r.jpg"
+
+    [wallpaper.monitors.eDP-1]
+    path = "/home/mattprueba/Descargas/Wallpapers/wallhaven-lydk7r.jpg"
+
+[widget.clock]
+capsule = true
+format = "{:%I:%M}"
+scale = 1.4000000000000001
+
+[widget.launcher]
+custom_image = "/usr/share/icons/archlinu.png"
+scale = 1.2000000000000002
+
+[widget.recorder]
+type = "noctalia/screen_recorder:recorder"
+
+[widget.wallhaven]
+type = "noctalia/wallhaven:wallhaven"
+
+[widget.workspaces]
+empty_color = "tertiary"
+focused_color = "tertiary"
+occupied_color = "tertiary"
+show_labels = false

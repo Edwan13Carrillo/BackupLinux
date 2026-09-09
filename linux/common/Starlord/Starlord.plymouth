@@ -1,0 +1,9 @@
+[Plymouth Theme]
+Name=StarLord-Boot
+Description=StarLord Bootanimation For Plymouth
+Comment=made by Vivek Rajan
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/Starlord
+ScriptFile=/usr/share/plymouth/themes/Starlord/Starlord.script
