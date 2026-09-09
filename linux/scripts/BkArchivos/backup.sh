@@ -22,9 +22,6 @@ RUTAS_RESPALDO=(
 
     "$PC/.local/share/Prism Launcher|apps/Prism Launcher"
     "$PC/.local/share/lutris|apps/lutris"
-
-    #waywallen (org.waywallen.waywallen") de flatpak
-    "$PC/.var/app/org.waywallen.waywallen|apps/waywallen"
 )
 
 # Formato: nombre|gestor|paquete_o_id_flatpak|destino_dentro_del_backup
@@ -32,11 +29,9 @@ RUTAS_RESPALDO=(
 # sin la aplicación. Hayase no aparece aquí: es AppImage y no se valida.
 APLICACIONES_VALIDAR=(
     "Zen|yay|zen-browser-bin|apps/zen"
-    "Prism|yay|prism|"
     "qBittorrent|pacman|qbittorrent|apps/qbittorrent"
     "PrismLauncher|pacman|prismlauncher|apps/Prism Launcher"
     "Lutris|pacman|lutris|apps/lutris"
-    "Waywallen|flatpak|org.waywallen.waywallen|apps/waywallen"
 )
 
 APLICACIONES_FALTANTES=()
@@ -44,6 +39,9 @@ DESTINOS_OMITIDOS=()
 
 NOMBRE_ARCHIVO="backup.tar.gz"
 NOMBRE_CIFRADO="$NOMBRE_ARCHIVO.gpg"
+# Por defecto se usa el disco de $HOME, no el tmpfs limitado de /tmp.
+# TMPDIR permite usar otra ubicación de forma explícita para pruebas.
+DIRECTORIO_TEMPORAL_BASE="${TMPDIR:-$HOME/.cache/backup-usb-tmp}"
 TEMPORAL_RAIZ=""
 TEMPORAL_USB=""
 
@@ -84,7 +82,17 @@ trap limpiar_temporales EXIT
 trap 'exit 130' INT TERM
 
 crear_temporal() {
-    TEMPORAL_RAIZ=$(mktemp -d "${TMPDIR:-/tmp}/backup-usb.XXXXXX") || {
+    mkdir -p "$DIRECTORIO_TEMPORAL_BASE" || {
+        echo -e "${RED}✖ No se pudo crear el directorio para temporales: $DIRECTORIO_TEMPORAL_BASE${RESET}"
+        return 1
+    }
+
+    if [ ! -d "$DIRECTORIO_TEMPORAL_BASE" ] || [ ! -w "$DIRECTORIO_TEMPORAL_BASE" ]; then
+        echo -e "${RED}✖ No se puede escribir en el directorio temporal: $DIRECTORIO_TEMPORAL_BASE${RESET}"
+        return 1
+    fi
+
+    TEMPORAL_RAIZ=$(mktemp -d "$DIRECTORIO_TEMPORAL_BASE/backup-usb.XXXXXX") || {
         echo -e "${RED}✖ No se pudo crear el directorio temporal.${RESET}"
         return 1
     }
@@ -438,8 +446,9 @@ respaldar() {
 
             if [[ "$DESTINO" == "${CARPETAS[0]}" || "$DESTINO" == "${CARPETAS[1]}" ]]; then
                 rsync -av --delete \
-                    --exclude='qbit/' \
                     --exclude='BackupLinux/' \
+                    --exclude='juegosLutris/' \
+                    --exclude='*.mkv' \
                     --exclude='*.m4a' \
                     "$ORIGEN/" "$stage/$DESTINO/" || {
                         echo -e "${RED}✖ Falló la copia temporal de: $ORIGEN${RESET}"

@@ -243,6 +243,7 @@ DOTFILES_NIRI=(
     "$BK_NIRI/quickshell/wallpaper-picker|$CONFIG_DIR/quickshell/|1|0"
     "$BK_NIRI/sddm/metadata.desktop|/usr/share/sddm/themes/sddm-astronaut-theme/|0|1"
     "$BK_NIRI/sddm/japanese_aesthetic.conf|/usr/share/sddm/themes/sddm-astronaut-theme/Themes/|0|1"
+    "$BK_NIRI/sddm/Inazuma.mp4|/usr/share/sddm/themes/sddm-astronaut-theme/Backgrounds/|0|1"
     "$ASSETS_DIR/icons/archlinu.png|/usr/share/icons/|0|1"
 )
 

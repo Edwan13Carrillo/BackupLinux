@@ -31,7 +31,10 @@ VIDEO_FORMATS = {
     "360p":  "bestvideo[height<=360]+bestaudio/best[height<=360]",
     "Mejor disponible": "bestvideo+141/bestvideo+bestaudio/best",
 }
-AUDIO_FORMAT = "141/bestaudio"
+AUDIO_FORMAT = "bestaudio/best"
+
+# ── Reintentos: ayuda con 403 intermitentes y cortes de red ──
+RETRY_ARGS = ["--retries", "10", "--fragment-retries", "10", "--retry-sleep", "3"]
 
 # ── Navegadores desde los que yt-dlp puede sacar cookies (todos soportados en Windows) ──
 BROWSER_LABELS = {
@@ -90,20 +93,22 @@ def cookie_args(browser_label):
 
 def build_video_cmd(url, quality, out_template, browser_label):
     fmt = VIDEO_FORMATS.get(quality, VIDEO_FORMATS["Mejor disponible"])
-    return ["yt-dlp", "-f", fmt, *cookie_args(browser_label),
+    return ["yt-dlp", "-f", fmt, *cookie_args(browser_label), *RETRY_ARGS,
             "--merge-output-format", "mkv", "-o", out_template, url]
 
 
 def build_audio_cmd(url, out_template, browser_label):
-    return ["yt-dlp", "-f", AUDIO_FORMAT, "-x", "--audio-format", "m4a",
-            *cookie_args(browser_label), "--embed-thumbnail", "--add-metadata",
+    return ["yt-dlp", "-f", AUDIO_FORMAT, "-x", "--audio-format", "mp3",
+            "--audio-quality", "0", *cookie_args(browser_label), *RETRY_ARGS,
+            "--embed-thumbnail", "--add-metadata",
             "-o", out_template, url]
 
 
 # ───────────────────────── Ejecución / streaming ─────────────────────────
 
 def run_and_stream(cmd, log_queue, prefix=""):
-    """Corre un comando, manda cada línea a la cola y parsea el % de progreso."""
+    """Corre un comando, manda cada línea a la cola y parsea el % de progreso.
+    Devuelve (returncode, vio_403) para poder dar un mensaje de error más certero."""
     log_queue.put(("log", f"$ {' '.join(cmd)}"))
     try:
         process = subprocess.Popen(
@@ -113,12 +118,15 @@ def run_and_stream(cmd, log_queue, prefix=""):
         )
     except FileNotFoundError:
         log_queue.put(("error", "No encontré el ejecutable 'yt-dlp'. ¿Está en el PATH?"))
-        return 1
+        return 1, False
 
+    saw_403 = False
     for line in process.stdout:
         line = line.rstrip("\n")
         if not line:
             continue
+        if "403" in line:
+            saw_403 = True
         log_queue.put(("log", f"{prefix}{line}" if prefix else line))
         m = PROGRESS_RE.search(line)
         if m:
@@ -128,7 +136,53 @@ def run_and_stream(cmd, log_queue, prefix=""):
                 pass
 
     process.wait()
-    return process.returncode
+    return process.returncode, saw_403
+
+
+def cleanup_stray_files(directory, base_filename, keep_ext=".mp3"):
+    """Si algo falló a mitad de camino, yt-dlp puede dejar el archivo crudo
+    sin convertir (webm, m4a, opus, .part, etc). Los borra para no dejar
+    basura regada con el mismo nombre pero en formato equivocado."""
+    if not os.path.isdir(directory):
+        return
+    removed = []
+    for fname in os.listdir(directory):
+        name, ext = os.path.splitext(fname)
+        if name == base_filename and ext.lower() != keep_ext:
+            try:
+                os.remove(os.path.join(directory, fname))
+                removed.append(fname)
+            except OSError:
+                pass
+    return removed
+
+
+def build_error_message(browser_label, saw_403):
+    if saw_403:
+        return (
+            "yt-dlp terminó con error 403 Forbidden.\n\n"
+            "YouTube cambia sus protecciones seguido y esto casi siempre se "
+            "arregla actualizando yt-dlp (no el script, el programa yt-dlp en sí):\n\n"
+            "• Si lo instalaste con pip: abre cmd y corre\n"
+            "  pip install -U yt-dlp\n"
+            "• Si usas el .exe suelto: corre\n"
+            "  yt-dlp -U\n\n"
+            "Si sigue fallando después de actualizar, prueba activando cookies "
+            "de un navegador con sesión iniciada en YouTube (a veces ayuda aunque "
+            "el video no sea privado)."
+        )
+    extra = (
+        "• Si activaste cookies, revisa que el navegador elegido tenga sesión "
+        "iniciada en YouTube.\n"
+        if browser_label != "Ninguna (sin cookies)" else ""
+    )
+    return (
+        "yt-dlp terminó con error. Revisa el registro.\n\n"
+        "Verifica que:\n"
+        "• La URL sea correcta.\n"
+        f"{extra}"
+        "• yt-dlp esté actualizado (pip install -U yt-dlp / yt-dlp -U)."
+    )
 
 
 # ───────────────────────── Hilos de trabajo ─────────────────────────
@@ -176,28 +230,18 @@ def download_single_thread(option, url, quality, browser_label, log_queue):
         msg = "Descargando video y fusionando con FFmpeg..."
     elif option == 2:
         cmd = build_audio_cmd(url, out_template, browser_label)
-        msg = "Extrayendo audio (prioridad: formato 141, AAC 256kbps)..."
+        msg = "Extrayendo audio a MP3 (mejor calidad disponible)..."
     else:
         log_queue.put(("error", "Opción inválida."))
         return
 
     log_queue.put(("status", msg))
-    rc = run_and_stream(cmd, log_queue)
+    rc, saw_403 = run_and_stream(cmd, log_queue)
 
     if rc == 0:
         log_queue.put(("done", True, SCRIPT_DIR))
     else:
-        extra = (
-            "• Si activaste cookies, revisa que el navegador elegido tenga sesión "
-            "iniciada en YouTube.\n"
-            if browser_label != "Ninguna (sin cookies)" else ""
-        )
-        log_queue.put(("error",
-            "yt-dlp terminó con error. Revisa el registro.\n\n"
-            "Verifica que:\n"
-            "• La URL sea correcta.\n"
-            f"{extra}"
-        ))
+        log_queue.put(("error", build_error_message(browser_label, saw_403)))
 
 
 def download_playlist_thread(option, quality, playlist_title, selected_entries, keep_numbering, browser_label, log_queue):
@@ -227,13 +271,19 @@ def download_playlist_thread(option, quality, playlist_title, selected_entries, 
 
         if option == 3:
             cmd = build_video_cmd(video_url, quality, out_template, browser_label)
+            keep_ext = ".mkv"
         else:
             cmd = build_audio_cmd(video_url, out_template, browser_label)
+            keep_ext = ".mp3"
 
-        rc = run_and_stream(cmd, log_queue, prefix=prefix)
+        rc, saw_403 = run_and_stream(cmd, log_queue, prefix=prefix)
         if rc != 0:
             overall_ok = False
-            log_queue.put(("log", f"⚠ Falló: {entry.get('title', '(sin título)')}"))
+            motivo = " (403 Forbidden, actualiza yt-dlp)" if saw_403 else ""
+            log_queue.put(("log", f"⚠ Falló: {entry.get('title', '(sin título)')}{motivo}"))
+            removed = cleanup_stray_files(full_dir, filename, keep_ext=keep_ext)
+            if removed:
+                log_queue.put(("log", f"   🧹 Borré restos sin convertir: {', '.join(removed)}"))
 
     log_queue.put(("done", overall_ok, full_dir))
 
