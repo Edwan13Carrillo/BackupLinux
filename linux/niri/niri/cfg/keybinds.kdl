@@ -12,10 +12,12 @@ binds {
     Mod+Return                          hotkey-overlay-title="Open Terminal: Alacritty" { spawn "alacritty"; }
     Mod+B                               hotkey-overlay-title="Open Browser: firefox" { spawn "zen-browser"; }
 
+	// --- PLugins ---
+	Mod+Y                               { spawn-sh "noctalia msg panel-toggle aabidk20/yt-music:mini"; }
+	Mod+Shift+Y                         { spawn-sh "noctalia msg panel-toggle aabidk20/yt-music:panel";	}
+	
     // --- Noctalia ---
-    Mod+Shift+Return {
-        spawn "sh" "-c" "pgrep -f 'qs.*wallpaper-picker' >/dev/null && qs -c wallpaper-picker ipc call wallpaper-picker toggle || qs -n -d -c wallpaper-picker"
-    }
+	Mod+W                               { spawn "qs" "-n" "-d" "-c" "wallpaper-picker"; }
     
     Mod+S                               hotkey-overlay-title="Open Control Center: noctalia controlCenter" { spawn-sh "noctalia msg panel-toggle control-center"; }
     Mod+Shift+S                         hotkey-overlay-title="Open Settings: noctalia settings" { spawn-sh "noctalia msg settings-toggle"; }
@@ -23,8 +25,7 @@ binds {
     Mod+ALT+L                           hotkey-overlay-title="Lock Screen: noctalia lock" { spawn-sh "noctalia msg session lock"; }
     Mod+Shift+Q                         hotkey-overlay-title="Session Menu: noctalia sessionMenu" { spawn-sh "noctalia msg panel-toggle session"; }
 
-    // Please set the text editor of your choice.
-    // Mod+Shift+E                               hotkey-overlay-title="Open Text Editor: Zed" { spawn "zed"; }
+    Mod+N                               hotkey-overlay-title="Open Text Editor: gnome-text-editor" { spawn "gnome-text-editor"; }
 
     // Please choose your own file manager.
     Mod+E                               hotkey-overlay-title="File Manager: Nautilus" { spawn "nautilus"; }
@@ -44,7 +45,7 @@ binds {
     XF86MonBrightnessDown               allow-when-locked=true { spawn-sh "noctalia msg brightness-down"; }
 
     // ─── Window Movement and Focus ───
-    Mod+Q                               { close-window; }
+    Mod+Q                               { spawn-sh "niri msg action close-window; pkill -f 'qs.*wallpaper-picker'"; }
 
     Mod+Left                            { focus-column-left; }
     Mod+H                               { focus-column-left; }
@@ -71,8 +72,8 @@ binds {
 
     Mod+Shift+Left                      { focus-monitor-left; }
     Mod+Shift+Right                     { focus-monitor-right; }
-    Mod+Shift+UP                        { focus-monitor-up; }
-    Mod+Shift+Down                      { focus-monitor-down; }
+ // Mod+Shift+UP                        { focus-monitor-up; }
+ // Mod+Shift+Down                      { focus-monitor-down; }
 
     Mod+Shift+CTRL+Left                 { move-column-to-monitor-left; }
     Mod+Shift+CTRL+Right                { move-column-to-monitor-right; }
@@ -96,8 +97,11 @@ binds {
     // ─── Workspace Switching ───
     Mod+WheelScrollDown                 cooldown-ms=150 { focus-workspace-down; }
     Mod+WheelScrollUp                   cooldown-ms=150 { focus-workspace-up; }
-    Mod+CTRL+WheelScrollDown            cooldown-ms=150 { move-column-to-workspace-down; }
-    Mod+CTRL+WheelScrollUp              cooldown-ms=150 { move-column-to-workspace-up; }
+    Mod+Shift+UP                        { move-column-to-workspace-up; }
+    Mod+Shift+Down                      { move-column-to-workspace-down; }
+ 
+    //Mod+CTRL+WheelScrollDown            cooldown-ms=150 { move-column-to-workspace-down; }
+    //Mod+CTRL+WheelScrollUp              cooldown-ms=150 { move-column-to-workspace-up; }
 
     Mod+WheelScrollRight                { focus-column-right; }
     Mod+WheelScrollLeft                 { focus-column-left; }
@@ -146,7 +150,7 @@ binds {
     Mod+T                               { toggle-window-floating; }
     Mod+F                               { maximize-column; }
     Mod+Shift+F                         { fullscreen-window; }
-    Mod+W                               { toggle-column-tabbed-display; }
+    Mod+A                               { toggle-column-tabbed-display; }
     Mod+M                               { maximize-window-to-edges; }
 
     // ─── Screenshots ───
