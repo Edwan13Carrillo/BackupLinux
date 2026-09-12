@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # ─────────────────────────────────────────
-# Setup CachyOS — Versión 100% Bash
+# Setup CachyOS KDE — Versión 100% Bash
+# Respaldo sin dependencia de Ansible.
+# Traducción directa de ansible/playbook.yml
 # ─────────────────────────────────────────
 
 # ─────────────────────────────────────────
@@ -116,17 +118,25 @@ PAQUETES_BASE=(
     git fastfetch yt-dlp qbittorrent fuse2 mkvtoolnix-gui prismlauncher
     base-devel paru flatpak python-mutagen tk rsync snapper
     cachyos-snapper-support btrfs-assistant
-    alacritty haruna baobab gnome-text-editor
+    alacritty baobab gnome-text-editor
+)
+
+# Paquetes exclusivos del perfil Plasma
+PAQUETES_PLASMA=(
+    haruna
 )
 
 # Paquetes exclusivos del perfil Niri + Noctalia (repos oficiales / CachyOS)
 PAQUETES_NIRI=(
     matugen quickshell
+    gnome-keyring libsecret
+    mpv jq curl openbsd-netcat mpv-mpris
+    bitwarden-cli
 )
 
 # Paquetes exclusivos del perfil Niri que solo existen en AUR
 PAQUETES_NIRI_AUR=(
-    sddm-astronaut-theme
+    sddm-astronaut-theme millennium
 )
 
 instalar_paquetes_red() {
@@ -137,6 +147,18 @@ instalar_paquetes_red() {
         return 0
     else
         print_err "Falló la instalación de paquetes de red."
+        return 1
+    fi
+}
+
+instalar_uosc() {
+    print_info "Instalando uosc para mpv..."
+
+    if /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/tomasklaen/uosc/HEAD/installers/unix.sh)"; then
+        print_ok "uosc instalado."
+        return 0
+    else
+        print_err "Falló la instalación de uosc."
         return 1
     fi
 }
@@ -160,13 +182,26 @@ instalar_paquetes() {
         fi
         print_ok "Paquetes de Niri instalados."
 
-        print_info "Instalando sddm-astronaut-theme (AUR) con paru..."
+        if ! instalar_uosc; then
+            return 1
+        fi
+
+        print_info "Instalando sddm-astronaut-theme y millennium (AUR) con paru..."
         if paru -S --needed --noconfirm "${PAQUETES_NIRI_AUR[@]}"; then
-            print_ok "sddm-astronaut-theme instalado."
+            print_ok "Paquetes AUR de Niri instalados."
         else
             print_err "Falló la instalación de paquetes AUR de Niri."
             return 1
         fi
+    fi
+
+    if [ "$PROFILE" = "plasma" ]; then
+        print_info "Instalando paquetes específicos de Plasma..."
+        if ! sudo pacman -S --needed --noconfirm "${PAQUETES_PLASMA[@]}"; then
+            print_err "Falló la instalación de paquetes de Plasma."
+            return 1
+        fi
+        print_ok "Paquetes de Plasma instalados."
     fi
 
     if ! instalar_paquetes_red; then
@@ -222,7 +257,6 @@ DOTFILES_COMUNES=(
     "$BK_COMMON/Bibata-Modern-Ice|$HOME/.icons/|1|0"
     "$BK_COMMON/fastfetch/|$CONFIG_DIR/fastfetch/|0|0"
     "$BK_COMMON/alacritty/|$CONFIG_DIR/alacritty/|0|0"
-    "$BK_COMMON/haruna/|$CONFIG_DIR/haruna/|0|0"
 )
 
 DOTFILES_PLASMA=(
@@ -234,6 +268,7 @@ DOTFILES_PLASMA=(
     "$BK_PLASMA/cachyosTG|$LOCAL_DIR/plasma/look-and-feel/|0|0"
     "$BK_PLASMA/kdedefaults/|$CONFIG_DIR/kdedefaults/|0|0"
     "$BK_PLASMA/ArchDark.colors|$LOCAL_DIR/color-schemes/|0|0"
+    "$BK_PLASMA/haruna/|$CONFIG_DIR/haruna/|0|0"
 )
 
 DOTFILES_NIRI=(
@@ -243,8 +278,9 @@ DOTFILES_NIRI=(
     "$BK_NIRI/quickshell/wallpaper-picker|$CONFIG_DIR/quickshell/|1|0"
     "$BK_NIRI/sddm/metadata.desktop|/usr/share/sddm/themes/sddm-astronaut-theme/|0|1"
     "$BK_NIRI/sddm/japanese_aesthetic.conf|/usr/share/sddm/themes/sddm-astronaut-theme/Themes/|0|1"
-    "$BK_NIRI/sddm/Inazuma.mp4|/usr/share/sddm/themes/sddm-astronaut-theme/Backgrounds/|0|1"
     "$ASSETS_DIR/icons/archlinu.png|/usr/share/icons/|0|1"
+    "$BK_NIRI/mimeapps.list|$CONFIG_DIR/|0|0"
+    "$BK_NIRI/mpv/skip_confirm.lua|$CONFIG_DIR/mpv/scripts/|0|0"
 )
 
 configurar_sddm_theme() {
@@ -258,6 +294,35 @@ configurar_sddm_theme() {
         print_err "Falló activando el tema de SDDM."
         return 1
     fi
+}
+
+configurar_symlinks_zen() {
+    print_info "Configurando symlinks de Zen (necesarios para el plugin de YouTube Music)..."
+    local ok=1
+
+    if [ -L "$HOME/.zen" ] || [ -e "$HOME/.zen" ]; then
+        print_ok "~/.zen ya existe."
+    else
+        if ln -s "$CONFIG_DIR/zen" "$HOME/.zen"; then
+            print_ok "Symlink ~/.zen creado."
+        else
+            print_err "Falló creando ~/.zen"
+            ok=0
+        fi
+    fi
+
+    if [ -L /usr/local/bin/zen ] || [ -e /usr/local/bin/zen ]; then
+        print_ok "/usr/local/bin/zen ya existe."
+    else
+        if sudo ln -s /usr/bin/zen-browser /usr/local/bin/zen; then
+            print_ok "Symlink /usr/local/bin/zen creado."
+        else
+            print_err "Falló creando /usr/local/bin/zen"
+            ok=0
+        fi
+    fi
+
+    [ "$ok" = "1" ]
 }
 
 copiar_dotfiles() {
@@ -307,6 +372,14 @@ copiar_dotfiles() {
     print_info "Refrescando cache de fuentes..."
     fc-cache -f >/dev/null 2>&1 && print_ok "Cache de fuentes actualizado."
 
+    print_info "Activando el tema de Plymouth (Starlord)..."
+    if sudo plymouth-set-default-theme -R Starlord; then
+        print_ok "Plymouth configurado con el tema Starlord."
+    else
+        print_err "No se pudo activar Plymouth. Actívalo manualmente: sudo plymouth-set-default-theme -R Starlord"
+        fallo=1
+    fi
+
     if [ "$PROFILE" = "plasma" ]; then
         print_warn "Aplica las fuentes en: Ajustes del sistema > Fuentes (Fredoka Medium 12pt / 10pt)."
         print_warn "Ve a: Ajustes del sistema > Aspecto > Tema global y selecciona 'CachyTG' para aplicarlo."
@@ -318,6 +391,10 @@ copiar_dotfiles() {
         chmod +x "$CONFIG_DIR/noctalia/hooks/matugen-wallpaper.sh" 2>/dev/null || true
 
         if ! configurar_sddm_theme; then
+            fallo=1
+        fi
+
+        if ! configurar_symlinks_zen; then
             fallo=1
         fi
 
@@ -372,6 +449,35 @@ configurar_gamezone() {
     else
         print_err "Falló asignando propiedad."
         return 1
+    fi
+
+    local qbit_dir="$HOME/Documentos/qbit"
+
+    if [ -d "$qbit_dir" ]; then
+        print_ok "La carpeta $qbit_dir ya existe."
+    else
+        print_info "Creando $qbit_dir..."
+        if mkdir -p "$qbit_dir"; then
+            print_ok "Carpeta creada."
+        else
+            print_err "Falló creando $qbit_dir."
+            return 1
+        fi
+    fi
+
+    local attrs_qbit
+    attrs_qbit="$(lsattr -d "$qbit_dir" 2>/dev/null | awk '{print $1}')"
+
+    if [[ "$attrs_qbit" == *C* ]]; then
+        print_ok "NoCoW ya está activo en $qbit_dir."
+    else
+        print_info "Activando NoCoW (chattr +C) en $qbit_dir..."
+        if chattr +C "$qbit_dir"; then
+            print_ok "NoCoW activado en $qbit_dir."
+        else
+            print_err "Falló activando NoCoW en $qbit_dir."
+            return 1
+        fi
     fi
 
     print_ok "Fase 3 completada."
@@ -544,7 +650,7 @@ setup_network() {
 # Resumen y verificaciones
 # ─────────────────────────────────────────
 
-resumen_manual() {
+pendientes_manuales() {
     print_header "Pasos manuales pendientes"
 
     printf '  Los siguientes pasos %bno se pueden automatizar%b y deben hacerse a mano:\n\n' "$BOLD" "$NC"
@@ -562,17 +668,26 @@ resumen_manual() {
     echo '    • Snapshot maestra: sudo snapper -c root create --description "Sistema base configurado"'
 
     if [ "$PROFILE" = "niri" ]; then
-        echo "    • Millennium (Steam): paru -S millennium, abrir Steam, activar el tema NEVKO-UI a mano."
-        echo "      Luego copiar el CSS:"
-        echo "        cp \"$BK_NIRI/Millennium/Library Code.css\" \\"
-        echo "          ~/.steam/steam/millennium/themes/NEVKO-UI/\"Main Refresh UI\"/\"Refresh Library\"/\"Library Code.css\""
-        echo "      (confirma esa ruta real de Steam cuando tengas el subvolumen games/ montado, puede variar)."
+        printf '\n'
+        echo "    • Millennium (Steam): ya se instaló el paquete. Abre Steam y activa el tema NEVKO-UI a mano."
+        echo "      La copia del CSS de NEVKO-UI se maneja en otro script aparte, no aquí."
+        printf '\n'
+        echo "    • Bitwarden: corre 'bw login' para iniciar sesión (es interactivo, no se automatiza)."
+        echo "      Revisa en la extensión/CLI que el timeout del vault sea 15 min y el clear clipboard 30 seg."
+        echo "      Funciona en el launcher escribiendo '/bw'."
+        printf '\n'
+        echo "    • Better Clock (Noctalia): abre Noctalia y activa el plugin community/better-clock"
+        echo "      desde Settings → Plugins. Cuando ya exista la carpeta, copia:"
+        echo "        cp \"$BK_NIRI/widget.luau\" \\"
+        echo "          ~/.local/state/noctalia/plugins/materialized/community/better-clock/widget.luau"
     fi
     printf '\n'
 
     echo "  Reinicia el sistema después de completar estos pasos para que todo quede aplicado correctamente."
     printf '\n'
+}
 
+verificaciones() {
     print_header "Verificaciones"
 
     printf '  %b→%b  Subvolumen /games:\n' "$CYAN" "$NC"
@@ -587,6 +702,10 @@ resumen_manual() {
     printf '\n'
     printf '  %b→%b  Atributo NoCoW en /games:\n' "$CYAN" "$NC"
     lsattr -d /games 2>/dev/null || print_err "No se pudo leer /games"
+
+    printf '\n'
+    printf '  %b→%b  Atributo NoCoW en ~/Documentos/qbit:\n' "$CYAN" "$NC"
+    lsattr -d "$HOME/Documentos/qbit" 2>/dev/null || print_err "No se pudo leer ~/Documentos/qbit"
 
     printf '\n'
     printf '  %b→%b  Configuraciones de Snapper (debe aparecer solo '"'"'root'"'"'):\n' "$CYAN" "$NC"
@@ -639,6 +758,34 @@ resumen_manual() {
     printf '\n'
     printf '  %b→%b  Firewall UFW:\n' "$CYAN" "$NC"
     sudo ufw status || true
+
+    if [ "$PROFILE" = "niri" ]; then
+        printf '\n'
+        printf '  %b→%b  Symlink de Zen:\n' "$CYAN" "$NC"
+
+        local zen_path
+        zen_path="$(command -v zen 2>/dev/null || true)"
+
+        if [ "$zen_path" = "/usr/local/bin/zen" ]; then
+            print_ok "command -v zen -> $zen_path"
+        else
+            print_err "command -v zen -> ${zen_path:-no encontrado} (se esperaba /usr/local/bin/zen)"
+        fi
+
+        printf '\n'
+        printf '  %b→%b  Perfiles de Zen (revisa a ojo, no se edita por script):\n' "$CYAN" "$NC"
+
+        if [ -f "$CONFIG_DIR/zen/profiles.ini" ]; then
+            cat "$CONFIG_DIR/zen/profiles.ini"
+        else
+            print_warn "No se encontró $CONFIG_DIR/zen/profiles.ini todavía."
+        fi
+    fi
+}
+
+resumen_manual() {
+    pendientes_manuales
+    verificaciones
 }
 
 # ─────────────────────────────────────────
