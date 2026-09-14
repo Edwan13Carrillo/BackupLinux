@@ -1,6 +1,6 @@
 # BackupLinux 🐧
 
-> Mi respaldo personal de **CachyOS + KDE Plasma** — para cuando el sistema explota y hay que volver a armar todo sin querer llorar.
+> Mi respaldo personal de **CachyOS** — con dos sabores, **KDE Plasma** o **Niri + Noctalia** — para cuando el sistema explota y hay que volver a armar todo sin querer llorar.
 
 ---
 
@@ -8,27 +8,28 @@
 
 | Carpeta | Contenido |
 |---|---|
-| `setup.sh` | El jefe. Arma todo: dotfiles, fuentes, paquetes y más |
-| `linux/configs/` | Dotfiles de `alacritty`, `fastfetch`, KDE defaults, `.local/` y más |
-| `linux/fonts/` | Fuentes personalizadas: Fredoka, Okami, Earth Theory |
+| `setup.sh` | El jefe. Arma todo: paquetes, dotfiles, fuentes, subvolumen de juegos, Snapper, red/firewall y más |
+| `linux/common/` | Dotfiles compartidos por los dos perfiles: Alacritty, Fastfetch, fuentes (Fredoka, Okami, Earth Theory), cursores Bibata, tema de arranque Plymouth (Starlord) |
+| `linux/plasma/` | Dotfiles exclusivos de KDE Plasma: temas Aurorae y look-and-feel, iconos Tela, Haruna, esquema de color, `kdedefaults`, etc. |
+| `linux/niri/` | Dotfiles exclusivos de Niri + Noctalia: config de Niri, Noctalia, matugen, Quickshell, tema de SDDM, scripts de mpv, etc. |
 | `linux/scripts/yt-dlp/` | Script para descargar videos/audio con yt-dlp |
 | `linux/scripts/organizar/` | Scripts en Python para organizar ASMR, música, anime y PDFs |
 | `gaming/notes/` | Configs y parámetros de Steam para distintos juegos |
 | `gaming/mc_skins/` | Skins de Minecraft |
 | `assets/wallpapers/` | Fondos de pantalla |
-| `assets/icons/` | Iconos |
+| `assets/icons/` | Iconos, incluyendo los personalizados (ej. el del launcher de Noctalia) |
 | `docs/` | Guía completa de reinstalación (PDF) + notas y extras |
 
 ---
 
 ## Fase 0 — Instalación de CachyOS
 
-Antes de correr `setup.sh` necesitás el sistema ya instalado así. Es clave para que `systemd-boot` arranque bien — no te lo saltes ni cambies el orden.
+Antes de correr `setup.sh` necesitás el sistema ya instalado así. Es clave para que `limine` arranque bien — no te lo saltes ni cambies el orden.
 
 **Tabla de particiones:** GPT
 
 **Partición EFI**
-- Tamaño: 2048 MiB
+- Tamaño: 4092 MiB
 - Sistema de archivos: FAT32
 - Punto de montaje: `/boot`
 - Flag: `boot`
@@ -44,10 +45,21 @@ Antes de correr `setup.sh` necesitás el sistema ya instalado así. Es clave par
 
 ---
 
+## Perfiles: Plasma o Niri + Noctalia
+
+Lo primero que pide `setup.sh` al correrlo es elegir un perfil:
+
+1. **KDE Plasma**
+2. **Niri + Noctalia**
+
+Los paquetes y dotfiles de `linux/common/` se instalan siempre, sin importar el perfil. El resto (`linux/plasma/` o `linux/niri/`) depende de cuál elijas. Se puede correr el script de nuevo para elegir el otro perfil — no queda "pegado" a la primera elección.
+
+---
+
 ## Reinstalación rápida
 
 ```bash
-git clone https://github.com/tuusuario/BackupLinux.git
+git clone https://github.com/Edwan13Carrillo/BackupLinux.git
 cd BackupLinux
 chmod +x setup.sh
 ./setup.sh
@@ -68,8 +80,7 @@ Descarga videos o audio desde YouTube y otras plataformas. Sin drama.
 Sistema de organización automática de archivos. Dejás los archivos que quieras ordenar en la carpeta `orden/` y el `main.py` se encarga del resto. Organiza:
 - 🎵 Música
 - 🎧 ASMR
-- 🍙 Anime
-- 📚 PDFs (Mangas específicamente)
+- 📚 PDFs (Mangas, manhwas específicamente)
 
 ---
 

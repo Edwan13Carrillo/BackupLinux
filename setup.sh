@@ -118,7 +118,7 @@ PAQUETES_BASE=(
     git fastfetch yt-dlp qbittorrent fuse2 mkvtoolnix-gui prismlauncher
     base-devel paru flatpak python-mutagen tk rsync snapper
     cachyos-snapper-support btrfs-assistant
-    alacritty baobab gnome-text-editor
+    alacritty baobab gnome-text-editor gvfs-mtp libmtp android-udev
 )
 
 # Paquetes exclusivos del perfil Plasma

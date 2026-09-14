@@ -22,6 +22,41 @@ RUTAS_RESPALDO=(
 
     "$PC/.local/share/Prism Launcher|apps/Prism Launcher"
     "$PC/.local/share/lutris|apps/lutris"
+
+    # La carpeta del tema en sí es tolerante (si falta, se omite con aviso);
+    # lo que de verdad se exige que exista es "temes/" — ver REQUISITOS_ESTRICTOS.
+    "$PC/.Steam/steam/millenium/temes/neko-ui|apps/millennium/neko-ui"
+
+    "$PC/.config/niri|apps/niri"
+    "$PC/.config/quickshell|apps/quickshell"
+)
+
+# Formato: origen|destino_dentro_del_backup|estricto
+# A diferencia de RUTAS_RESPALDO, cada entrada es un ARCHIVO puntual (no una
+# carpeta): se copia con cp, nunca con rsync --delete, así que jamás se borra
+# nada más dentro de la carpeta real de destino, ni al respaldar ni al
+# restaurar (p. ej. no toca el resto de "scripts" de mpv ni del ".vscode").
+# El tercer campo, "si", hace que si el archivo no existe se detenga todo
+# el respaldo en vez de solo omitir esa entrada; vacío = advertir y omitir.
+ARCHIVOS_RESPALDO=(
+    "$PC/.vscode/argv.json|vscode/argv.json|"
+    "$PC/.config/mpv/scripts/skip_confirm.lua|apps/mpv/scripts/skip_confirm.lua|"
+
+    # El archivo en sí es tolerante (si falta, se omite con aviso);
+    # lo que de verdad se exige que exista es la carpeta del plugin —
+    # ver REQUISITOS_ESTRICTOS.
+    "$PC/.local/state/noctalia/plugins/materialized/community/better-clock/widget.luau|apps/noctalia/better-clock/widget.luau|"
+)
+
+# Formato: ruta|descripción
+# Carpetas "contenedoras" que deben existir ANTES de continuar (se revisan
+# antes de crear temporales o copiar nada). No son lo que se respalda —
+# son la señal de que Millennium / el plugin de Noctalia están instalados —
+# lo que sí se respalda (p. ej. la carpeta neko-ui puntual, o el widget.luau)
+# vive en RUTAS_RESPALDO / ARCHIVOS_RESPALDO y es tolerante si falta.
+REQUISITOS_ESTRICTOS=(
+    "$PC/.Steam/steam/millenium/temes|Millennium (carpeta de temas)"
+    "$PC/.local/state/noctalia/plugins/materialized/community/better-clock|Plugin better-clock de Noctalia"
 )
 
 # Formato: nombre|gestor|paquete_o_id_flatpak|destino_dentro_del_backup
@@ -116,6 +151,45 @@ validar_usb() {
     fi
 }
 
+# Revisa primero REQUISITOS_ESTRICTOS (carpetas que deben existir sí o sí),
+# y de paso también las rutas "estrictas" que puedan quedar sueltas en
+# RUTAS_RESPALDO (sin prefijo "apps/") y ARCHIVOS_RESPALDO (marcadas "si").
+# Todo esto corre antes de crear temporales o copiar nada.
+validar_rutas_estrictas() {
+    local requisito ruta descripcion entrada_archivo
+
+    for requisito in "${REQUISITOS_ESTRICTOS[@]}"; do
+        ruta="${requisito%%|*}"
+        descripcion="${requisito#*|}"
+
+        if [ ! -d "$ruta" ]; then
+            echo -e "${RED}✖ No existe: $ruta${RESET}"
+            echo -e "${YELLOW}  ($descripcion no está instalado/configurado en esta PC)${RESET}"
+            return 1
+        fi
+    done
+
+    for ruta in "${RUTAS_RESPALDO[@]}"; do
+        separar_ruta "$ruta" || return 1
+        destino_de_aplicacion "$DESTINO" && continue
+
+        if [ ! -d "$ORIGEN" ]; then
+            echo -e "${RED}✖ No existe la ruta de origen: $ORIGEN${RESET}"
+            return 1
+        fi
+    done
+
+    for entrada_archivo in "${ARCHIVOS_RESPALDO[@]}"; do
+        separar_archivo "$entrada_archivo" || return 1
+        [ "$ARCHIVO_ESTRICTO" = "si" ] || continue
+
+        if [ ! -f "$ARCHIVO_ORIGEN" ]; then
+            echo -e "${RED}✖ No existe: $ARCHIVO_ORIGEN${RESET}"
+            return 1
+        fi
+    done
+}
+
 validar_destino_relativo() {
     local destino="$1"
 
@@ -139,6 +213,23 @@ separar_ruta() {
     fi
 
     validar_destino_relativo "$DESTINO"
+}
+
+separar_archivo() {
+    local entrada="$1"
+    local resto
+
+    ARCHIVO_ORIGEN="${entrada%%|*}"
+    resto="${entrada#*|}"
+    ARCHIVO_DESTINO="${resto%%|*}"
+    ARCHIVO_ESTRICTO="${resto#*|}"
+
+    if [ "$ARCHIVO_ORIGEN" = "$ARCHIVO_DESTINO" ]; then
+        echo -e "${RED}✖ Entrada inválida en ARCHIVOS_RESPALDO: $entrada${RESET}"
+        return 1
+    fi
+
+    validar_destino_relativo "$ARCHIVO_DESTINO"
 }
 
 separar_aplicacion() {
@@ -400,7 +491,7 @@ inicio || exit 1
 #========================================#
 
 respaldar() {
-    local ruta stage archivo archivo_cifrado
+    local ruta stage archivo archivo_cifrado entrada_archivo
 
     echo
     echo -e "${BOLD}${YELLOW}⚠ Se copiarán los datos desde la PC hacia la USB.${RESET}"
@@ -409,6 +500,7 @@ respaldar() {
 
     if [ "$ELECCION" == "s" ]; then
         validar_dependencias && validar_usb || return 1
+        validar_rutas_estrictas || return 1
         validar_aplicaciones_para_respaldo || return 1
         crear_temporal || return 1
 
@@ -462,6 +554,30 @@ respaldar() {
             fi
         done
 
+        for entrada_archivo in "${ARCHIVOS_RESPALDO[@]}"; do
+            separar_archivo "$entrada_archivo" || return 1
+
+            if [ ! -f "$ARCHIVO_ORIGEN" ]; then
+                if [ "$ARCHIVO_ESTRICTO" = "si" ]; then
+                    echo -e "${RED}✖ No existe: $ARCHIVO_ORIGEN${RESET}"
+                    return 1
+                fi
+                echo -e "${YELLOW}⚠ No existe el archivo: $ARCHIVO_ORIGEN; se omite.${RESET}"
+                continue
+            fi
+
+            echo
+            echo -e "${CYAN}────────────────────────────────────────${RESET}"
+            echo -e "${BOLD}${CYAN}📄 Copiando al temporal: $ARCHIVO_DESTINO${RESET}"
+            echo -e "${CYAN}────────────────────────────────────────${RESET}"
+
+            mkdir -p "$stage/$(dirname "$ARCHIVO_DESTINO")" || return 1
+            cp -f -- "$ARCHIVO_ORIGEN" "$stage/$ARCHIVO_DESTINO" || {
+                echo -e "${RED}✖ Falló la copia temporal de: $ARCHIVO_ORIGEN${RESET}"
+                return 1
+            }
+        done
+
         echo -e "${CYAN}📦 Creando el único archivo $NOMBRE_ARCHIVO...${RESET}"
         tar -czf "$archivo" -C "$stage" . || {
             echo -e "${RED}✖ Falló la creación de $NOMBRE_ARCHIVO.${RESET}"
@@ -501,7 +617,7 @@ respaldar() {
 #========================================#
 
 restaurar() {
-    local ruta archivo archivo_extraido origen_temporal
+    local ruta archivo archivo_extraido origen_temporal entrada_archivo
 
     echo
     echo -e "${BOLD}${YELLOW}⚠ Antes de continuar, abre y cierra Zen Browser.${RESET}"
@@ -563,6 +679,34 @@ restaurar() {
 
             rsync -av --delete "$origen_temporal/$DESTINO/" "$ORIGEN/" || {
                 echo -e "${RED}✖ Falló la restauración de: $DESTINO${RESET}"
+                return 1
+            }
+        done
+
+        for entrada_archivo in "${ARCHIVOS_RESPALDO[@]}"; do
+            separar_archivo "$entrada_archivo" || return 1
+
+            if [ ! -f "$origen_temporal/$ARCHIVO_DESTINO" ]; then
+                if [ "$ARCHIVO_ESTRICTO" = "si" ]; then
+                    echo -e "${RED}✖ Falta el archivo esperado en el respaldo: $ARCHIVO_DESTINO${RESET}"
+                    return 1
+                fi
+                echo -e "${YELLOW}⚠ No hay $ARCHIVO_DESTINO en este respaldo; se omite.${RESET}"
+                continue
+            fi
+
+            echo
+            echo -e "${CYAN}────────────────────────────────────────${RESET}"
+            echo -e "${BOLD}${CYAN}📄 Restaurando: $ARCHIVO_DESTINO${RESET}"
+            echo -e "${CYAN}────────────────────────────────────────${RESET}"
+
+            mkdir -p "$(dirname "$ARCHIVO_ORIGEN")" || {
+                echo -e "${RED}✖ No se pudo preparar el destino: $ARCHIVO_ORIGEN${RESET}"
+                return 1
+            }
+
+            cp -f -- "$origen_temporal/$ARCHIVO_DESTINO" "$ARCHIVO_ORIGEN" || {
+                echo -e "${RED}✖ Falló la restauración de: $ARCHIVO_DESTINO${RESET}"
                 return 1
             }
         done
