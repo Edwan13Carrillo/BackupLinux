@@ -29,6 +29,7 @@ RUTAS_RESPALDO=(
 
     "$PC/.config/niri|apps/niri"
     "$PC/.config/quickshell|apps/quickshell"
+    "$PC/.config/fish|apps/fish"
 )
 
 # Formato: origen|destino_dentro_del_backup|estricto

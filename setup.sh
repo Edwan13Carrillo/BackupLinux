@@ -275,6 +275,7 @@ DOTFILES_NIRI=(
     "$BK_NIRI/matugen|$CONFIG_DIR/|1|0"
     "$BK_NIRI/noctalia|$CONFIG_DIR/|1|0"
     "$BK_NIRI/niri/|$CONFIG_DIR/niri/|1|0"
+    "$BK_NIRI/fish/|$CONFIG_DIR/fish/|1|0"
     "$BK_NIRI/quickshell/wallpaper-picker|$CONFIG_DIR/quickshell/|1|0"
     "$BK_NIRI/sddm/metadata.desktop|/usr/share/sddm/themes/sddm-astronaut-theme/|0|1"
     "$BK_NIRI/sddm/japanese_aesthetic.conf|/usr/share/sddm/themes/sddm-astronaut-theme/Themes/|0|1"
